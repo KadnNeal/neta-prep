@@ -1,0 +1,148 @@
+import { StartExamButton } from "@/components/exam/StartExamButton";
+import { createClient } from "@/lib/supabase/server";
+import { AlertCircle, CheckCircle, Clock, FileText, ChevronLeft } from "lucide-react";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+
+export default async function ExamLauncherPage() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("neta_target_level")
+    .eq("id", user.id)
+    .single();
+
+  const targetLevel = profile?.neta_target_level ?? 3;
+  const questionCount = targetLevel === 4 ? 65 : 100;
+
+  const { count } = await supabase
+    .from("questions")
+    .select("*", { count: "exact", head: true })
+    .eq("level", targetLevel)
+    .eq("question_type" as "id", "exam_simulation");
+
+  const availableQuestions = count ?? 0;
+  const hasEnoughQuestions = availableQuestions >= questionCount;
+
+  return (
+    <main className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-12">
+      <div className="w-full max-w-2xl space-y-6">
+
+        {/* Back link */}
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground text-sm transition-all duration-150"
+        >
+          <ChevronLeft size={16} />
+          Dashboard
+        </Link>
+
+        {/* Header */}
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold text-primary uppercase tracking-widest">
+            NETA Level {targetLevel}
+          </p>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            Exam Simulation
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            Timed practice under real exam conditions
+          </p>
+        </div>
+
+        {/* Exam specs card */}
+        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-5">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Exam Conditions
+          </h2>
+          <div className="grid grid-cols-2 gap-5">
+            {[
+              {
+                icon: <FileText size={16} />,
+                label: "Questions",
+                value: `${questionCount} questions`,
+              },
+              {
+                icon: <Clock size={16} />,
+                label: "Time limit",
+                value: "120 minutes",
+              },
+              {
+                icon: <CheckCircle size={16} />,
+                label: "Passing score",
+                value: "75% (≈ 410/500)",
+              },
+              {
+                icon: <AlertCircle size={16} />,
+                label: "Format",
+                value: "Closed book, MCQ",
+              },
+            ].map(({ icon, label, value }) => (
+              <div key={label} className="flex items-start gap-3">
+                <span className="text-muted-foreground mt-0.5 shrink-0">
+                  {icon}
+                </span>
+                <div>
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="text-sm font-medium text-foreground mt-0.5">
+                    {value}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Rules */}
+        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Rules
+          </h2>
+          <ul className="space-y-2.5 text-sm text-foreground">
+            {[
+              "Navigate freely — review and change answers anytime",
+              "Flag questions to revisit before submitting",
+              "Timer runs continuously — no pausing allowed",
+              "Exam auto-submits when time expires",
+              "Closing this tab will warn you but not save your answers",
+            ].map((rule) => (
+              <li key={rule} className="flex items-start gap-2.5">
+                <span className="text-primary mt-0.5 shrink-0 text-xs font-bold">
+                  ›
+                </span>
+                <span className="text-muted-foreground">{rule}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Start / unavailable */}
+        {hasEnoughQuestions ? (
+          <div className="space-y-3">
+            <StartExamButton />
+            <p className="text-center text-xs text-muted-foreground">
+              Once started, the exam cannot be paused.
+            </p>
+          </div>
+        ) : (
+          <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl px-6 py-5 text-center space-y-2">
+            <p className="text-amber-400 font-semibold text-sm">
+              Not enough questions available
+            </p>
+            <p className="text-amber-400/70 text-xs">
+              The question bank needs at least {questionCount} Level{" "}
+              {targetLevel} questions. Currently {availableQuestions} available.
+            </p>
+          </div>
+        )}
+
+      </div>
+    </main>
+  );
+}
