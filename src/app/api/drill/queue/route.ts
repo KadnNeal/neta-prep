@@ -39,7 +39,7 @@ export async function GET() {
         next_review_date,
         last_score,
         question_id,
-        questions (
+        questions!inner (
           id,
           domain,
           subdomain,
@@ -56,6 +56,8 @@ export async function GET() {
       `)
       .eq("user_id", user.id)
       .lte("next_review_date", today)
+      .eq("questions.question_type", "exam_simulation")
+      .eq("questions.level", targetLevel)
       .limit(QUEUE_LIMIT);
 
     if (dueError) {
@@ -90,6 +92,7 @@ export async function GET() {
         .from("questions")
         .select("*")
         .eq("level", targetLevel)
+        .eq("question_type", "exam_simulation")
         .order("frequency_tier", { ascending: true })
         .order("difficulty", { ascending: true })
         .limit(Math.min(remaining, NEW_QUESTIONS_LIMIT));

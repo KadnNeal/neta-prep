@@ -2,22 +2,23 @@
 
 @layer base {
   :root {
-    /* Light Mode - Clean and bright */
-    --background: 255 255 255;
-    --foreground: 17 24 39;
-    --card: 249 250 251;
-    --card-foreground: 17 24 39;
-    --primary: 59 130 246;
+    /* Light Mode — warm off-white */
+    --background: 250 249 247;
+    --foreground: 24 24 27;
+    --card: 243 241 238;
+    --card-foreground: 24 24 27;
+    --primary: 234 88 12;
+    --primary-hover: 194 65 12;
     --primary-foreground: 255 255 255;
-    --secondary: 243 244 246;
-    --secondary-foreground: 17 24 39;
-    --muted: 243 244 246;
-    --muted-foreground: 107 114 128;
-    --accent: 239 246 255;
-    --accent-foreground: 17 24 39;
-    --border: 229 231 235;
-    --input: 229 231 235;
-    --ring: 59 130 246;
+    --secondary: 228 225 220;
+    --secondary-foreground: 24 24 27;
+    --muted: 228 225 220;
+    --muted-foreground: 82 82 91;
+    --accent: 228 225 220;
+    --accent-foreground: 24 24 27;
+    --border: 228 225 220;
+    --input: 228 225 220;
+    --ring: 234 88 12;
     --success: 34 197 94;
     --warning: 251 146 60;
     --destructive: 239 68 68;
@@ -25,13 +26,14 @@
   }
 
   .dark {
-    /* Dark Mode - True black base */
+    /* Dark Mode — true black base */
     --background: 9 9 11;
     --foreground: 250 250 250;
     --card: 24 24 27;
     --card-foreground: 250 250 250;
-    --primary: 96 165 250;
-    --primary-foreground: 9 9 11;
+    --primary: 234 88 12;
+    --primary-hover: 194 65 12;
+    --primary-foreground: 255 255 255;
     --secondary: 39 39 42;
     --secondary-foreground: 250 250 250;
     --muted: 39 39 42;
@@ -40,7 +42,7 @@
     --accent-foreground: 250 250 250;
     --border: 39 39 42;
     --input: 39 39 42;
-    --ring: 96 165 250;
+    --ring: 234 88 12;
     --success: 34 197 94;
     --warning: 251 146 60;
     --destructive: 239 68 68;
@@ -68,8 +70,8 @@
   --color-warning: rgb(var(--warning));
   --color-destructive: rgb(var(--destructive));
   --color-destructive-foreground: rgb(var(--destructive-foreground));
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
 body {
@@ -77,4 +79,5 @@ body {
   color: rgb(var(--foreground));
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI",
     system-ui, sans-serif;
+  font-size: 16px;
 }

@@ -248,7 +248,7 @@ export function ExamSession({ attemptId, questions }: ExamSessionProps) {
           </div>
 
           {/* Question text */}
-          <p className="text-foreground text-base leading-relaxed font-medium mb-7">
+          <p className="text-foreground text-lg leading-relaxed font-medium mb-7">
             {currentQuestion.question}
           </p>
 

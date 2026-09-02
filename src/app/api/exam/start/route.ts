@@ -79,7 +79,7 @@ export async function POST() {
       .eq("id", user.id)
       .single();
 
-    const targetLevel = profile?.neta_target_level ?? 3;
+    const targetLevel = profile?.neta_target_level ?? 2;
     const totalNeeded = EXAM_TOTAL[targetLevel] ?? DEFAULT_EXAM_TOTAL;
     const distribution = DOMAIN_DISTRIBUTION[targetLevel];
 
@@ -118,31 +118,40 @@ export async function POST() {
       );
     }
 
+    // Log available exam_simulation question counts per domain for verification
+    const availableCounts: Record<string, number> = {};
+    for (const [d, qs] of byDomain.entries()) {
+      availableCounts[d] = qs.length;
+    }
+    console.log(
+      `[exam/start] level=${targetLevel} available exam_simulation per domain:`,
+      availableCounts
+    );
+    if (distribution) {
+      console.log(`[exam/start] target distribution:`, distribution);
+    }
+
     const selected: ExamQuestion[] = [];
-    const surplus: ExamQuestion[] = [];
 
     if (distribution) {
+      // ── Verify each domain has enough exam_simulation questions ─────────────
+      const shortfalls: string[] = [];
+      for (const [domain, target] of Object.entries(distribution) as [NETADomain, number][]) {
+        const available = byDomain.get(domain)?.length ?? 0;
+        if (available < target) {
+          shortfalls.push(`${domain}: need ${target}, have ${available}`);
+        }
+      }
+      if (shortfalls.length > 0) {
+        const msg = `Insufficient exam_simulation questions: ${shortfalls.join(" | ")}`;
+        console.error("[exam/start]", msg);
+        return NextResponse.json({ error: msg }, { status: 500 });
+      }
+
       // ── Domain-weighted selection ──────────────────────────────────────────
       for (const [domain, target] of Object.entries(distribution) as [NETADomain, number][]) {
         const pool = shuffle(byDomain.get(domain) ?? []);
         selected.push(...pool.slice(0, target));
-        // Excess questions from over-stocked domains go to surplus
-        if (pool.length > target) {
-          surplus.push(...pool.slice(target));
-        }
-      }
-
-      // Fill any shortfall (domain doesn't have enough exam_simulation questions)
-      const shortfall = totalNeeded - selected.length;
-      if (shortfall > 0) {
-        // Prefer surplus from other domains first, then fall back to practice Qs
-        const fromSurplus = shuffle(surplus).slice(0, shortfall);
-        selected.push(...fromSurplus);
-
-        const stillShort = totalNeeded - selected.length;
-        if (stillShort > 0) {
-          selected.push(...shuffle(fallbackPool).slice(0, stillShort));
-        }
       }
     } else {
       // No distribution for this level — shuffle all available and slice

@@ -1,90 +1,70 @@
-import { NETA_DOMAINS, TIER1_SUBDOMAINS } from "@/lib/neta-domains";
 import { createClient } from "@/lib/supabase/server";
 
-// ---- Types ----------------------------------------------------------------
+// ── Domain config ─────────────────────────────────────────────────────────────
 
-export interface SubdomainMastery {
-  mastery: number; // 0–100
-  seen: number; // questions the user has answered
-  total: number; // total questions in subdomain at user's level
-  domain: string; // parent domain key
-}
+const L2_WEIGHTS: Record<string, number> = {
+  "safety-standards":      15,
+  "fundamentals-theory":   25,
+  "component-testing":     55,
+  "systems-commissioning":  5,
+};
 
-export interface ReadinessData {
-  /** Per-subdomain mastery stats */
-  subdomainMastery: Record<string, SubdomainMastery>;
-  /** Per-domain aggregate mastery 0–100 */
-  domainMastery: Record<string, number>;
-  streak: number;
+const DOMAIN_LABELS: Record<string, string> = {
+  "safety-standards":      "Safety",
+  "fundamentals-theory":   "Electrical Testing Fundamentals & Theory",
+  "component-testing":     "Component Testing",
+  "systems-commissioning": "Systems & Commissioning",
+};
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface DomainActivity {
+  domain: string;
+  label: string;
+  examWeight: number;
   totalAnswered: number;
-  averageEaseFactor: number;
-  examDate: string | null;
+  recentAccuracy: number | null; // null if fewer than 10 answered in domain
+  recentCount: number;           // how many of the last 25 exist
+}
+
+export interface DashboardData {
+  examReadiness: {
+    score: number | null;            // null if < 25 exam sim answered
+    totalExamSimAnswered: number;
+  };
+  domainActivity: DomainActivity[];
+  streak: number;
+  totalAnswered: number;           // all modes, all time
+  sessionsCompleted: number;       // distinct days with activity
   targetLevel: number;
-  isExamReady: boolean;
-  examSimCount: number;
-  bestSimScore: number | null;
 }
 
-// ---- Helpers ---------------------------------------------------------------
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-function computeMastery(
-  questionIds: string[],
-  statsMap: Map<string, number> // questionId → easeFactor
-): { mastery: number; seen: number; total: number } {
-  const total = questionIds.length;
-  if (total === 0) return { mastery: 0, seen: 0, total: 0 };
-
-  let seen = 0;
-  let efSum = 0;
-  for (const id of questionIds) {
-    const ef = statsMap.get(id);
-    if (ef !== undefined) {
-      seen++;
-      efSum += ef;
-    }
-  }
-
-  // mastery = sum(easeFactor) / (total * 2.5) * 100
-  // A question answered with default EF=2.5 contributes exactly 1/total.
-  // Unseen questions contribute 0. Capped at 100.
-  const mastery = Math.min(
-    Math.round((efSum / (total * 2.5)) * 100),
-    100
-  );
-
-  return { mastery, seen, total };
-}
-
-function computeStreak(updatedAts: string[]): number {
-  const dates = new Set(updatedAts.map((ts) => ts.slice(0, 10)));
-
+function computeStreak(dates: Set<string>): number {
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
-
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = yesterday.toISOString().slice(0, 10);
 
-  // Streak only counts if active today or yesterday (doesn't break mid-day)
   if (!dates.has(todayStr) && !dates.has(yesterdayStr)) return 0;
 
   let cursor = dates.has(todayStr) ? todayStr : yesterdayStr;
   let streak = 0;
-
   while (dates.has(cursor)) {
     streak++;
     const d = new Date(cursor);
     d.setDate(d.getDate() - 1);
     cursor = d.toISOString().slice(0, 10);
   }
-
   return streak;
 }
 
-// ---- Main fetch ------------------------------------------------------------
+// ── Main fetch ────────────────────────────────────────────────────────────────
 
 /** Server-only. Call from Server Components or API Route Handlers. */
-export async function getReadinessData(): Promise<ReadinessData | null> {
+export async function getDashboardData(): Promise<DashboardData | null> {
   try {
     const supabase = await createClient();
 
@@ -93,118 +73,107 @@ export async function getReadinessData(): Promise<ReadinessData | null> {
     } = await supabase.auth.getUser();
     if (!user) return null;
 
-    // 1. Profile
     const { data: profile } = await supabase
       .from("profiles")
-      .select("neta_target_level, exam_date")
+      .select("neta_target_level")
       .eq("id", user.id)
       .single();
 
-    const targetLevel = profile?.neta_target_level ?? 3;
+    const targetLevel = profile?.neta_target_level ?? 2;
 
-    // 2. Questions at target level
-    const { data: questions, error: qError } = await supabase
-      .from("questions")
-      .select("id, subdomain, domain")
-      .eq("level", targetLevel);
+    // All user stats joined with question metadata, newest first
+    type StatRow = {
+      last_score: number | null;
+      updated_at: string;
+      questions: { domain: string; question_type: string; level: number };
+    };
 
-    if (qError) return null;
-
-    // 3. User stats (all of them)
-    const { data: stats } = await supabase
+    const { data: statsRaw } = await supabase
       .from("user_question_stats")
-      .select("question_id, ease_factor, updated_at")
-      .eq("user_id", user.id);
-
-    // 4. Exam attempts (completed, for this level)
-    const { data: exams } = await supabase
-      .from("exam_attempts")
-      .select("score_percent")
+      .select("last_score, updated_at, questions!inner(domain, question_type, level)")
       .eq("user_id", user.id)
-      .eq("level", targetLevel)
-      .not("completed_at", "is", null)
-      .order("score_percent", { ascending: false });
+      .order("updated_at", { ascending: false });
 
-    // Build quick-lookup: questionId → easeFactor
-    const efMap = new Map<string, number>();
-    const updatedAts: string[] = [];
-    for (const s of stats ?? []) {
-      efMap.set(s.question_id, s.ease_factor);
-      updatedAts.push(s.updated_at);
-    }
+    const allStats = (statsRaw ?? []) as unknown as StatRow[];
 
-    // Group question IDs by subdomain and domain
-    const subdomainIds = new Map<string, string[]>();
-    const domainIds = new Map<string, string[]>();
-
-    for (const q of questions ?? []) {
-      const sd = subdomainIds.get(q.subdomain) ?? [];
-      sd.push(q.id);
-      subdomainIds.set(q.subdomain, sd);
-
-      const dd = domainIds.get(q.domain) ?? [];
-      dd.push(q.id);
-      domainIds.set(q.domain, dd);
-    }
-
-    // Compute subdomain mastery
-    const subdomainMastery: Record<string, SubdomainMastery> = {};
-    for (const [subdomain, ids] of subdomainIds.entries()) {
-      // Find which domain this subdomain belongs to
-      const parentDomain =
-        Object.entries(NETA_DOMAINS).find(([, d]) =>
-          (d.subdomains as readonly string[]).includes(subdomain)
-        )?.[0] ?? "component-testing";
-
-      const { mastery, seen, total } = computeMastery(ids, efMap);
-      subdomainMastery[subdomain] = { mastery, seen, total, domain: parentDomain };
-    }
-
-    // Compute domain mastery for all 4 official domains
-    const domainMastery: Record<string, number> = {};
-    for (const [domain] of Object.entries(NETA_DOMAINS)) {
-      const ids = domainIds.get(domain) ?? [];
-      const { mastery } = computeMastery(ids, efMap);
-      domainMastery[domain] = mastery;
-    }
-
-    // Aggregate stats
-    const allStats = stats ?? [];
+    // ── Streak & sessions ─────────────────────────────────────────────────────
+    const activityDates = new Set(allStats.map((s) => s.updated_at.slice(0, 10)));
+    const streak = computeStreak(activityDates);
+    const sessionsCompleted = activityDates.size;
     const totalAnswered = allStats.length;
-    const averageEaseFactor =
-      totalAnswered > 0
-        ? allStats.reduce((sum, s) => sum + s.ease_factor, 0) / totalAnswered
-        : 0;
 
-    // Streak
-    const streak = computeStreak(updatedAts);
-
-    // Exam simulations
-    const examSimCount = (exams ?? []).length;
-    const bestSimScore = exams?.[0]?.score_percent ?? null;
-
-    // Exam Ready criteria
-    const allSubdomainsMet = Object.values(subdomainMastery).every(
-      (m) => m.total === 0 || m.mastery >= 80
+    // ── Exam readiness ────────────────────────────────────────────────────────
+    // Uses only exam_simulation questions at the user's target level
+    const examSimStats = allStats.filter(
+      (s) =>
+        s.questions.question_type === "exam_simulation" &&
+        s.questions.level === targetLevel
     );
-    const tier1Met = TIER1_SUBDOMAINS.every(
-      (sd) => (subdomainMastery[sd]?.mastery ?? 0) >= 90
+
+    const totalExamSimAnswered = examSimStats.length;
+    let examScore: number | null = null;
+
+    if (totalExamSimAnswered >= 25) {
+      const last100 = examSimStats.slice(0, 100);
+
+      // Per-domain accuracy in that window
+      const domainBuckets = new Map<string, { correct: number; total: number }>();
+      for (const s of last100) {
+        const domain = s.questions.domain;
+        const bucket = domainBuckets.get(domain) ?? { correct: 0, total: 0 };
+        bucket.total++;
+        if ((s.last_score ?? 0) >= 3) bucket.correct++;
+        domainBuckets.set(domain, bucket);
+      }
+
+      // Weighted score — domains with no data in the window contribute 0
+      let weighted = 0;
+      for (const [domain, weight] of Object.entries(L2_WEIGHTS)) {
+        const bucket = domainBuckets.get(domain);
+        if (bucket && bucket.total > 0) {
+          weighted += (weight / 100) * (bucket.correct / bucket.total);
+        }
+      }
+      examScore = Math.round(weighted * 100);
+    }
+
+    // ── Domain activity ───────────────────────────────────────────────────────
+    // All question types at the user's target level, newest first (already ordered)
+    const targetLevelStats = allStats.filter(
+      (s) => s.questions.level === targetLevel
     );
-    const simMet = examSimCount >= 1 && (bestSimScore ?? 0) >= 75;
-    const isExamReady =
-      totalAnswered > 0 && allSubdomainsMet && tier1Met && simMet;
+
+    const domainActivity: DomainActivity[] = Object.keys(L2_WEIGHTS).map(
+      (domain) => {
+        const rows = targetLevelStats.filter(
+          (s) => s.questions.domain === domain
+        );
+        const last25 = rows.slice(0, 25);
+        const recentCorrect = last25.filter(
+          (s) => (s.last_score ?? 0) >= 3
+        ).length;
+
+        return {
+          domain,
+          label: DOMAIN_LABELS[domain] ?? domain,
+          examWeight: L2_WEIGHTS[domain],
+          totalAnswered: rows.length,
+          recentAccuracy:
+            last25.length >= 10
+              ? Math.round((recentCorrect / last25.length) * 100)
+              : null,
+          recentCount: last25.length,
+        };
+      }
+    );
 
     return {
-      subdomainMastery,
-      domainMastery,
+      examReadiness: { score: examScore, totalExamSimAnswered },
+      domainActivity,
       streak,
       totalAnswered,
-      averageEaseFactor,
-      examDate: profile?.exam_date ?? null,
+      sessionsCompleted,
       targetLevel,
-      isExamReady,
-      examSimCount,
-      bestSimScore,
     };
   } catch {
     return null;

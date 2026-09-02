@@ -99,7 +99,7 @@ export function QuestionCard({
 
       {/* Question text */}
       <div className="px-6 py-6">
-        <p className="text-foreground text-base leading-relaxed font-medium">
+        <p className="text-foreground text-lg leading-relaxed font-medium">
           {question.question}
         </p>
       </div>

@@ -1,9 +1,9 @@
-import { getReadinessData } from "@/lib/readiness";
+import { getDashboardData } from "@/lib/readiness";
 import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
-    const data = await getReadinessData();
+    const data = await getDashboardData();
     if (!data) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

@@ -48,7 +48,7 @@ export function AnswerFeedback({
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2.5">
           Explanation
         </p>
-        <p className="text-foreground text-sm leading-relaxed">{explanation}</p>
+        <p className="text-foreground text-base leading-relaxed">{explanation}</p>
       </div>
 
       {/* Trap warning */}
@@ -57,7 +57,7 @@ export function AnswerFeedback({
           <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-2.5">
             ⚠ Common Trap
           </p>
-          <p className="text-amber-300/90 text-sm leading-relaxed">
+          <p className="text-amber-300/90 text-base leading-relaxed">
             {trapPattern}
           </p>
         </div>

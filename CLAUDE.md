@@ -583,6 +583,26 @@ ANTHROPIC_API_KEY=             # server-only
 | 7 | Interview mode (Anthropic API) | — |
 | 8 | Audit + generate exam-style questions to 100 total | ✅ Done |
 | 9 | Practice questions table + educational question set | — |
+| 11 | Level 1 roadmap — 9 modules, 76 questions, roadmap + module quiz pages | ✅ Done |
+| 12 | NeetCode-style visual tree UI + fix scoring bug (client-side reveal) | ✅ Done |
+| 13 | Learn-before-quiz flow — rich content, quick checks, worked examples, learn-complete API | ✅ Done |
+| 14 | Auth & onboarding — middleware level guard, NETA 2-only select-level page, password validation, login/signup redirects, removed diagnostic flow | ✅ Done |
+| 15 | Dashboard UI restructure — remove radar, 4 domain cards (2×2) with collapsible subdomain detail, reorder layout, no red/orange colors | ✅ Done |
+| 16 | Dashboard quick access + CTA fix — 3 cards (Roadmap, Drill, Exam), CTA → Begin Roadmap, remove Interview Mode | ✅ Done |
+| 17 | Dashboard & nav fixes — independent domain card expand state, sticky SiteNav, more prominent dashboard button | ✅ Done |
+| 18 | Daily drill — restrict to exam_simulation questions + user's NETA level only (due reviews + new questions both filtered) | ✅ Done |
+| 19 | Light/dark mode toggle (Sun/Moon in SiteNav, localStorage, default dark) + amber-orange accent system replacing blue + typography bump (16px base, 18px question stems, 20px section headers) | ✅ Done |
+| 20 | Google OAuth (login + signup, /auth/callback route) + /settings page (Profile, Change Password, Change Email, Appearance toggle, Subscription placeholder, Danger Zone delete) + Settings gear icon in navbar | ✅ Done |
+| 21 | Practice Mode — /practice domain selector + count picker, per-question instant feedback, AI explanation (Anthropic API) with skeleton loader, bookmark toggle, results screen, bookmarked_questions table, Practice link in SiteNav + Dashboard quick access (4th card, 2×2 grid) | ✅ Done |
+| 22 | Practice Mode Polish — count options 10/15/25, answer option design overhaul (1px borders, green/red rgb bg, no greying unselected), bookmarked questions section on results screen + Retake Bookmarked flow, L2 domain weights corrected to 15/25/55/5 | ✅ Done |
+| 23 | Revert answer colors to S21 green-500/10 + red-500/10 style (keep S22 border/hover/unselected improvements); exam start route audit — confirmed L2 distribution 15/25/55/5 correct, default level 2→3 fixed, added per-domain count logging, added hard error on domain shortfall (removed silent surplus fill) | ✅ Done |
+| 24 | AI explanation redesign — structured CORRECT/WRONG_A-D API format, parseExplanation parser, InlineMarkdown bold renderer, WrongAccordion with CSS grid expand animation, amber left-border card, "Explanation" label + "Why X is correct" always-visible header | ✅ Done |
+| 25 | Domain mastery → accuracy-based formula (last_score≥3 / answered, joins user_question_stats×questions); 85% threshold tick marker on progress bars; grey/amber/green color states (0-49/50-84/85+); ✓ Exam Ready badge next to domain name + footer label per card; hide Practice from SiteNav when on dashboard | ✅ Done |
+| 26 | Correct answer redistribution — redistribute_answers.py shuffles correct_answer + option texts uniformly; 1000 exam_simulation L2 questions updated (was A=5% B=46% C=39% D=10%, now A=23% B=28% C=25% D=24%); --dry-run flag, batch-of-50, DB verification | ✅ Done |
+| 27 | Stripe payment integration — /pricing page (4 tiers: Free/Monthly/90-Day/Annual), checkout + webhook + portal API routes, free tier enforcement (roadmap locked to M1, practice 15/day cap, AI explanations hidden, exam simulator gated), SiteNav Upgrade link for free users, settings subscription section with real billing data | ✅ Done |
+| 28 | Pricing page polish — 90-Day button → amber outline (matches Monthly), remove supervisor justification copy box, add expense nudge line above cards | ✅ Done |
+| 29 | Roadmap restructure — 28-module NETA 2 curriculum across 5 phases, flat list UI with phase headers + domain badges, remove 80% unlock gate, free tier gates phases 2-5, "Start here" badge for new users, phase completion %, dashboard card → "28 modules across 5 phases" | ✅ Done |
+| 30 | Roadmap learn pages — new RoadmapLearnContent schema (overview/sections/key_values/exam_tips/summary), LearnPageContent server component, learn page rewrite with coming-soon fallback, generate_roadmap_content.py (claude-sonnet-4-6, resume support, --dry-run), Learn+Quiz buttons on module rows | ✅ Done |
 
 
 ---

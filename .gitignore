@@ -42,3 +42,13 @@ next-env.d.ts
 
 
 nul 
+# One-off scripts and generated data, not app code
+*.pdf
+*_progress.json
+gen_questions.py
+generate_roadmap_content.py
+generate_roadmap_questions.py
+load_questions.py
+redistribute_answers.py
+improved_questions_final.json
+ROADMAP PROMPT.txt

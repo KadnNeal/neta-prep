@@ -1,42 +1,42 @@
-import { NETA_DOMAINS, TIER1_SUBDOMAINS, formatSubdomainLabel } from "@/lib/neta-domains";
-import { ReadinessRadar, type RadarPoint } from "@/components/dashboard/ReadinessRadar";
-import { getReadinessData } from "@/lib/readiness";
+import { getDashboardData } from "@/lib/readiness";
+import { getRoadmapData } from "@/lib/roadmap";
+import { createClient } from "@/lib/supabase/server";
+import { DomainActivitySection } from "@/components/dashboard/DomainMasterySection";
 
 import {
   BookCheck,
-  CalendarDays,
+  CalendarCheck2,
   ChevronRight,
   ClipboardList,
   Flame,
-  MessageSquare,
+  Map,
+  Target,
   Trophy,
-  TrendingUp,
   Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-// ── helpers ─────────────────────────────────────────────────────────────────
+// ── Readiness score helpers ───────────────────────────────────────────────────
 
-function masteryBarClass(m: number) {
-  if (m >= 80) return "bg-green-500";
-  if (m >= 60) return "bg-yellow-500";
-  return "bg-red-500";
+function readinessLabel(score: number): string {
+  if (score >= 85) return "Exam Ready";
+  if (score >= 70) return "Nearly Ready";
+  if (score >= 50) return "Getting There";
+  return "Building Foundation";
 }
 
-function masteryTextClass(m: number) {
-  if (m >= 80) return "text-green-400";
-  if (m >= 60) return "text-yellow-400";
-  return "text-red-400";
+function readinessColorClass(score: number): string {
+  if (score >= 85) return "text-green-500";
+  return "text-primary";
 }
 
-function daysFromNow(dateStr: string): number {
-  return Math.ceil(
-    (new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-  );
+function readinessBarColor(score: number): string {
+  if (score >= 85) return "bg-green-500";
+  return "bg-primary";
 }
 
-// ── sub-components ───────────────────────────────────────────────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function StatCard({
   icon,
@@ -57,52 +57,8 @@ function StatCard({
         <p className="text-2xl font-semibold text-foreground leading-none tracking-tight">
           {value}
         </p>
-        {sub && (
-          <p className="text-xs text-muted-foreground mt-1.5">{sub}</p>
-        )}
+        {sub && <p className="text-xs text-muted-foreground mt-1.5">{sub}</p>}
       </div>
-    </div>
-  );
-}
-
-function SubdomainRow({
-  slug,
-  mastery,
-  seen,
-  total,
-}: {
-  slug: string;
-  mastery: number;
-  seen: number;
-  total: number;
-}) {
-  const isTier1 = (TIER1_SUBDOMAINS as readonly string[]).includes(slug);
-  return (
-    <div className="flex items-center gap-4 py-2.5">
-      <div className="w-44 shrink-0 flex items-center gap-2">
-        <span className="text-sm text-foreground font-medium">
-          {formatSubdomainLabel(slug)}
-        </span>
-        {isTier1 && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-orange-500/10 text-orange-400 border border-orange-500/20 leading-none font-medium">
-            T1
-          </span>
-        )}
-      </div>
-      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-300 ${masteryBarClass(mastery)}`}
-          style={{ width: `${mastery}%` }}
-        />
-      </div>
-      <span
-        className={`w-10 text-right text-sm font-semibold tabular-nums ${masteryTextClass(mastery)}`}
-      >
-        {mastery}%
-      </span>
-      <span className="w-16 text-right text-xs text-muted-foreground tabular-nums">
-        {seen}/{total}
-      </span>
     </div>
   );
 }
@@ -138,113 +94,183 @@ function NavCard({
   );
 }
 
-// ── page ────────────────────────────────────────────────────────────────────
+// ── Exam Readiness Card ───────────────────────────────────────────────────────
+
+function ExamReadinessCard({
+  score,
+  totalExamSimAnswered,
+}: {
+  score: number | null;
+  totalExamSimAnswered: number;
+}) {
+  const MIN_QUESTIONS = 25;
+
+  return (
+    <div className="bg-card border border-border rounded-2xl px-6 py-6 shadow-sm space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1">
+            Exam Readiness Score
+          </p>
+          {score !== null ? (
+            <div className="flex items-end gap-3">
+              <span
+                className={`text-4xl font-semibold tabular-nums leading-none tracking-tight ${readinessColorClass(score)}`}
+              >
+                {score}%
+              </span>
+              <span
+                className={`text-base font-medium mb-0.5 ${readinessColorClass(score)}`}
+              >
+                {readinessLabel(score)}
+              </span>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground max-w-sm">
+              Answer more exam simulation questions to generate your readiness
+              score
+              {totalExamSimAnswered > 0 &&
+                ` (${totalExamSimAnswered}/${MIN_QUESTIONS} so far)`}
+            </p>
+          )}
+        </div>
+        {score !== null && score >= 85 && (
+          <div className="shrink-0 flex items-center gap-2 bg-green-500/10 border border-green-500/30 rounded-xl px-4 py-3">
+            <Trophy className="text-green-400" size={16} />
+            <span className="text-green-400 font-semibold text-sm">
+              Exam Ready
+            </span>
+          </div>
+        )}
+      </div>
+
+      {score !== null && (
+        <div className="space-y-1.5">
+          <div className="h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${readinessBarColor(score)}`}
+              style={{ width: `${score}%` }}
+            />
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Based on your last 100 exam simulation questions, weighted by NETA
+            Level 2 domain
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
-  const data = await getReadinessData();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const data = await getDashboardData();
   if (!data) redirect("/login");
 
+  if (data.targetLevel === 1 && user) {
+    const roadmap = await getRoadmapData(user.id);
+    return <Level1Dashboard data={data} roadmap={roadmap} />;
+  }
+
   const {
-    domainMastery,
-    subdomainMastery,
+    examReadiness,
+    domainActivity,
     streak,
     totalAnswered,
-    averageEaseFactor,
-    examDate,
+    sessionsCompleted,
     targetLevel,
-    isExamReady,
-    examSimCount,
-    bestSimScore,
   } = data;
 
-  const levelKey = `L${targetLevel}` as "L2" | "L3" | "L4";
-
-  const radarData: RadarPoint[] = Object.entries(NETA_DOMAINS)
-    .filter(([, d]) => d.examWeight[levelKey] > 0)
-    .map(([key, d]) => ({
-      subject: d.label,
-      mastery: domainMastery[key] ?? 0,
-      fullMark: 100,
-    }));
-
-  const daysUntilExam = examDate ? daysFromNow(examDate) : null;
   const isNewUser = totalAnswered === 0;
 
   return (
     <main className="min-h-screen bg-background text-foreground pb-20">
       <div className="max-w-5xl mx-auto px-6 py-12 space-y-10">
 
-        {/* ── Header ──────────────────────────────────────────────────── */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-1.5">
-              NETA Level {targetLevel}
-            </p>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              Dashboard
-            </h1>
-            <p className="text-muted-foreground text-sm mt-1.5">
-              Your exam readiness at a glance
-            </p>
-          </div>
-
-          {isExamReady && (
-            <div className="shrink-0 flex items-center gap-2 bg-green-500/10 border border-green-500/30 rounded-xl px-4 py-3">
-              <Trophy className="text-green-400" size={16} />
-              <span className="text-green-400 font-semibold text-sm">
-                Exam Ready
-              </span>
-            </div>
-          )}
+        {/* Header */}
+        <div>
+          <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-1.5">
+            Training for NETA Level {targetLevel}
+          </p>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            Dashboard
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1.5">
+            Your exam readiness at a glance
+          </p>
         </div>
 
-        {/* ── New user CTA ─────────────────────────────────────────────── */}
+        {/* CTA banner — new users only */}
         {isNewUser && (
           <div className="bg-primary/5 border border-primary/20 rounded-2xl px-6 py-6 flex items-center justify-between gap-4">
             <div>
               <p className="text-foreground font-semibold">
-                Start your first drill session
+                Start your learning path
               </p>
               <p className="text-muted-foreground text-sm mt-1">
-                Answer questions to see your mastery radar fill up
+                Follow the structured roadmap to build exam-ready knowledge
               </p>
             </div>
             <Link
-              href="/drill"
+              href="/roadmap"
               className="shrink-0 bg-primary text-primary-foreground font-medium text-sm px-5 py-2.5 rounded-lg hover:opacity-90 transition-all duration-150"
             >
-              Start Drilling
+              Begin Roadmap
             </Link>
           </div>
         )}
 
-        {/* ── Radar + stats grid ───────────────────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-5">
+        {/* Exam Readiness Score */}
+        <ExamReadinessCard
+          score={examReadiness.score}
+          totalExamSimAnswered={examReadiness.totalExamSimAnswered}
+        />
 
-          {/* Radar */}
-          <div className="bg-card border border-border rounded-2xl px-5 py-5 shadow-sm">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
-              Domain Mastery
-            </p>
-            <ReadinessRadar data={radarData} />
-            <div className="mt-4 flex items-center justify-center gap-6 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
-                ≥ 80%
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-yellow-500 inline-block" />
-                60–79%
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
-                &lt; 60%
-              </span>
-            </div>
+        {/* Quick Access */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">
+            Quick Access
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <NavCard
+              href="/roadmap"
+              icon={<Map size={20} />}
+              title="Learning Roadmap"
+              description="28 modules across 5 phases"
+            />
+            <NavCard
+              href="/drill"
+              icon={<Zap size={20} />}
+              title="Daily Drill"
+              description="SM-2 spaced repetition"
+            />
+            <NavCard
+              href="/practice"
+              icon={<Target size={20} />}
+              title="Practice Mode"
+              description="Target domains with AI feedback"
+            />
+            <NavCard
+              href="/exam"
+              icon={<ClipboardList size={20} />}
+              title="Exam Simulation"
+              description="100-question timed test"
+            />
           </div>
+        </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-1 gap-3">
+        {/* Domain Activity + Stats sidebar */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-5 items-start">
+          <DomainActivitySection domainActivity={domainActivity} />
+
+          {/* Stats sidebar */}
+          <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
             <StatCard
               icon={<Flame size={18} />}
               label="Day streak"
@@ -253,148 +279,222 @@ export default async function DashboardPage() {
             />
             <StatCard
               icon={<BookCheck size={18} />}
-              label="Cards answered"
+              label="Questions answered"
               value={String(totalAnswered)}
             />
             <StatCard
-              icon={<TrendingUp size={18} />}
-              label="Avg ease factor"
-              value={
-                averageEaseFactor > 0
-                  ? averageEaseFactor.toFixed(2)
-                  : "—"
-              }
-              sub="Target: ≥ 2.5"
+              icon={<CalendarCheck2 size={18} />}
+              label="Sessions completed"
+              value={String(sessionsCompleted)}
+              sub="Distinct days with activity"
             />
-            {daysUntilExam !== null ? (
-              <StatCard
-                icon={<CalendarDays size={18} />}
-                label="Days until exam"
-                value={daysUntilExam > 0 ? String(daysUntilExam) : "Today!"}
-              />
-            ) : (
-              <StatCard
-                icon={<ClipboardList size={18} />}
-                label="Exam sims done"
-                value={`${examSimCount}`}
-                sub={
-                  bestSimScore !== null
-                    ? `Best: ${bestSimScore.toFixed(0)}%`
-                    : "None yet"
-                }
-              />
-            )}
           </div>
         </div>
 
-        {/* ── Subdomain breakdown ──────────────────────────────────────── */}
-        <div className="space-y-5">
-          <h2 className="text-lg font-semibold tracking-tight text-foreground">
-            Subdomain Mastery
-          </h2>
+      </div>
+    </main>
+  );
+}
 
-          {Object.entries(NETA_DOMAINS).map(([domainKey, domain]) => {
-            const rows = domain.subdomains
-              .filter((sd) => (subdomainMastery[sd]?.total ?? 0) > 0)
-              .map((sd) => ({ slug: sd, ...subdomainMastery[sd] }));
+// ── Level 1 Dashboard ─────────────────────────────────────────────────────────
 
-            return (
-              <div
-                key={domainKey}
-                className="bg-card border border-border rounded-2xl px-6 py-5 shadow-sm"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold text-foreground">
-                    {domain.label}
-                  </h3>
-                  <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">
-                    {domain.examWeight[levelKey]}% of exam
-                  </span>
-                </div>
-                {rows.length > 0 ? (
-                  <div className="divide-y divide-border">
-                    {rows.map((row) => (
-                      <SubdomainRow key={row.slug} {...row} />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-sm py-1">
-                    No questions answered in this domain yet.
-                  </p>
-                )}
-              </div>
-            );
-          })}
+import type { DashboardData } from "@/lib/readiness";
 
-          {Object.values(subdomainMastery).every((m) => m.total === 0) && (
-            <div className="bg-card border border-border rounded-2xl px-6 py-10 text-center shadow-sm">
-              <p className="text-muted-foreground text-sm">
-                No subdomain data yet — complete a drill session to see your
-                breakdown.
-              </p>
-            </div>
-          )}
+function Level1Dashboard({
+  data,
+  roadmap,
+}: {
+  data: DashboardData;
+  roadmap: Awaited<ReturnType<typeof getRoadmapData>>;
+}) {
+  const { streak, totalAnswered } = data;
+  const { phases, totalModules, completedModules } = roadmap;
+
+  let currentModule: {
+    id: string;
+    title: string;
+    phase: number;
+    order_in_phase: number;
+  } | null = null;
+  let currentProgress: {
+    questions_completed: number;
+    total_questions: number | null;
+  } | null = null;
+
+  for (const phase of phases) {
+    for (const item of phase.modules) {
+      if (
+        item.isUnlocked &&
+        (item.progress?.status !== "completed" ||
+          (item.progress.score_percentage ?? 0) < 80)
+      ) {
+        currentModule = item.module;
+        currentProgress = item.progress
+          ? {
+              questions_completed: item.progress.questions_completed,
+              total_questions: item.module.total_questions,
+            }
+          : null;
+        break;
+      }
+    }
+    if (currentModule) break;
+  }
+
+  const overallPct =
+    totalModules > 0
+      ? Math.round((completedModules / totalModules) * 100)
+      : 0;
+
+  return (
+    <main className="min-h-screen bg-background text-foreground pb-20">
+      <div className="max-w-3xl mx-auto px-6 py-12 space-y-8">
+
+        <div>
+          <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-1.5">
+            Training for NETA Level 1
+          </p>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            Dashboard
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1.5">
+            Your learning path progress
+          </p>
         </div>
 
-        {/* ── Exam simulation summary ──────────────────────────────────── */}
-        {examSimCount > 0 && bestSimScore !== null && (
-          <div className="bg-card border border-border rounded-2xl px-6 py-5 flex items-center justify-between shadow-sm">
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-card border border-border rounded-2xl px-4 py-4 flex items-start gap-3">
+            <Flame size={16} className="text-muted-foreground mt-0.5 shrink-0" />
             <div>
-              <p className="text-xs text-muted-foreground mb-1 font-medium">
-                Exam Simulations
+              <p className="text-xs text-muted-foreground mb-0.5 font-medium">Streak</p>
+              <p className="text-xl font-semibold text-foreground leading-none">{streak}</p>
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-2xl px-4 py-4 flex items-start gap-3">
+            <BookCheck size={16} className="text-muted-foreground mt-0.5 shrink-0" />
+            <div>
+              <p className="text-xs text-muted-foreground mb-0.5 font-medium">Modules</p>
+              <p className="text-xl font-semibold text-foreground leading-none">
+                {completedModules}/{totalModules}
               </p>
-              <p className="text-foreground font-semibold">
-                {examSimCount} completed · Best score:{" "}
-                <span
-                  className={
-                    bestSimScore >= 75 ? "text-green-400" : "text-red-400"
-                  }
-                >
-                  {bestSimScore.toFixed(0)}%
-                </span>
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-2xl px-4 py-4 flex items-start gap-3">
+            <Target size={16} className="text-muted-foreground mt-0.5 shrink-0" />
+            <div>
+              <p className="text-xs text-muted-foreground mb-0.5 font-medium">Overall</p>
+              <p className="text-xl font-semibold text-foreground leading-none">{overallPct}%</p>
+            </div>
+          </div>
+        </div>
+
+        {currentModule ? (
+          <div className="bg-primary/5 border border-primary/20 rounded-2xl px-6 py-6 space-y-4">
+            <div>
+              <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-1">
+                Phase {currentModule.phase} · Module {currentModule.order_in_phase}
               </p>
-              {bestSimScore < 75 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Need ≥ 75% to satisfy Exam Ready criteria
+              <p className="text-foreground font-semibold text-lg leading-snug">
+                {currentModule.title}
+              </p>
+              {currentProgress?.total_questions && (
+                <p className="text-muted-foreground text-sm mt-1">
+                  {currentProgress.questions_completed > 0
+                    ? `${currentProgress.questions_completed}/${currentProgress.total_questions} questions answered`
+                    : `${currentProgress.total_questions} questions`}
                 </p>
               )}
             </div>
             <Link
-              href="/exam"
-              className="text-primary hover:opacity-80 text-sm font-medium transition-all duration-150"
+              href={`/roadmap/module/${currentModule.id}`}
+              className="inline-flex items-center gap-2 bg-primary text-primary-foreground font-medium text-sm px-5 py-2.5 rounded-lg hover:opacity-90 transition-all duration-150"
             >
-              Run again →
+              {currentProgress && currentProgress.questions_completed > 0
+                ? "Continue Module"
+                : "Start Module"}
+              <ChevronRight size={15} />
             </Link>
           </div>
-        )}
+        ) : completedModules === totalModules && totalModules > 0 ? (
+          <div className="bg-green-500/5 border border-green-500/20 rounded-2xl px-6 py-6 text-center">
+            <Trophy className="text-green-400 mx-auto mb-2" size={24} />
+            <p className="text-green-400 font-semibold">
+              All modules complete! Roadmap finished.
+            </p>
+          </div>
+        ) : null}
 
-        {/* ── Quick access ─────────────────────────────────────────────── */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+        <div className="bg-card border border-border rounded-2xl px-6 py-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-foreground">Roadmap Progress</h2>
+            <Link
+              href="/roadmap"
+              className="text-xs text-primary hover:opacity-80 transition-all"
+            >
+              View Full Roadmap →
+            </Link>
+          </div>
+          <div className="space-y-3">
+            {phases.map(({ phase, label, modules }) => {
+              const done = modules.filter(
+                (m) =>
+                  m.progress?.status === "completed" &&
+                  (m.progress.score_percentage ?? 0) >= 80
+              ).length;
+              const pct =
+                modules.length > 0
+                  ? Math.round((done / modules.length) * 100)
+                  : 0;
+              const allLocked = modules.every((m) => !m.isUnlocked);
+              return (
+                <div key={phase} className="flex items-center gap-4">
+                  <div className="w-28 shrink-0">
+                    <p className="text-xs font-medium text-foreground">Phase {phase}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{label}</p>
+                  </div>
+                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                    {!allLocked && (
+                      <div
+                        className="h-full bg-primary rounded-full transition-all duration-300"
+                        style={{ width: `${pct}%` }}
+                      />
+                    )}
+                  </div>
+                  <span className="w-16 text-right text-xs text-muted-foreground tabular-nums shrink-0">
+                    {allLocked ? "Locked" : `${done}/${modules.length}`}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">
             Quick Access
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <NavCard
+              href="/roadmap"
+              icon={<Map size={20} />}
+              title="Learning Roadmap"
+              description="28 modules across 5 phases"
+            />
             <NavCard
               href="/drill"
               icon={<Zap size={20} />}
               title="Daily Drill"
-              description="SM-2 spaced repetition queue"
-            />
-            <NavCard
-              href="/exam"
-              icon={<ClipboardList size={20} />}
-              title="Exam Simulation"
-              description="100-question timed practice"
-            />
-            <NavCard
-              href="/interview"
-              icon={<MessageSquare size={20} />}
-              title="Interview Mode"
-              description="AI-evaluated technical Q&A"
+              description="Spaced repetition practice"
             />
           </div>
         </div>
 
+        {totalAnswered === 0 && (
+          <p className="text-xs text-muted-foreground text-center">
+            Complete roadmap modules to build your question bank, then start
+            drilling for exam prep.
+          </p>
+        )}
       </div>
     </main>
   );

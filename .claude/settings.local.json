@@ -9,7 +9,14 @@
       "Bash(dir:*)",
       "Bash(npm install:*)",
       "Bash(npx vitest run:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(python *)",
+      "Bash(pip install *)",
+      "Bash(pip show *)",
+      "Bash(where python *)",
+      "Bash(Get-Content *)",
+      "Bash(findstr /i anthropic)",
+      "PowerShell(git add *)"
     ]
   }
 }

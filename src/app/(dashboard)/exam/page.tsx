@@ -1,6 +1,8 @@
 import { StartExamButton } from "@/components/exam/StartExamButton";
 import { createClient } from "@/lib/supabase/server";
-import { AlertCircle, CheckCircle, Clock, FileText, ChevronLeft } from "lucide-react";
+import { isActivePro } from "@/lib/stripe";
+import type { ProfileSubscription } from "@/lib/stripe";
+import { AlertCircle, CheckCircle, Clock, FileText, ChevronLeft, Lock } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -12,13 +14,17 @@ export default async function ExamLauncherPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
+  const { data: profileRaw } = await supabase
     .from("profiles")
-    .select("neta_target_level")
+    .select("neta_target_level, subscription_tier, subscription_status, subscription_expires_at, stripe_customer_id")
     .eq("id", user.id)
     .single();
 
-  const targetLevel = profile?.neta_target_level ?? 3;
+  const isPro = profileRaw
+    ? isActivePro(profileRaw as unknown as ProfileSubscription)
+    : false;
+
+  const targetLevel = (profileRaw as unknown as { neta_target_level: number | null })?.neta_target_level ?? 2;
   const questionCount = targetLevel === 4 ? 65 : 100;
 
   const { count } = await supabase
@@ -29,6 +35,40 @@ export default async function ExamLauncherPage() {
 
   const availableQuestions = count ?? 0;
   const hasEnoughQuestions = availableQuestions >= questionCount;
+
+  // Free tier gate
+  if (!isPro) {
+    return (
+      <main className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md space-y-6">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground text-sm transition-all duration-150"
+          >
+            <ChevronLeft size={16} />
+            Dashboard
+          </Link>
+          <div className="bg-card border border-primary/20 rounded-2xl p-8 text-center space-y-4 shadow-sm">
+            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto">
+              <Lock size={22} className="text-primary" />
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-xl font-semibold text-foreground">Exam Simulator — Pro Feature</h1>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                The timed 100-question exam simulation is available on Monthly, 90-Day Pass, and Annual plans.
+              </p>
+            </div>
+            <Link
+              href="/pricing"
+              className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground font-semibold text-sm px-6 py-3 rounded-xl hover:opacity-90 transition-all duration-150"
+            >
+              View Plans
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-12">
