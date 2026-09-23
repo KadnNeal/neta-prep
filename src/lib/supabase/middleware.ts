@@ -31,7 +31,6 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Redirect unauthenticated users to /login, except for auth-related pages
   const { pathname } = request.nextUrl;
   const isAuthPage =
     pathname.startsWith("/login") ||
@@ -39,10 +38,24 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/auth");
   const isOnboardingPage = pathname.startsWith("/onboarding");
   const isSettingsPage = pathname.startsWith("/settings");
+  // Public routes — never require auth
+  const isPublicRoute =
+    pathname === "/" ||
+    pathname === "/pricing" ||
+    isAuthPage ||
+    isOnboardingPage;
 
-  if (!user && !isAuthPage && !isOnboardingPage && pathname !== "/") {
+  // Redirect unauthenticated users to landing page for any protected route
+  if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = "/";
+    return NextResponse.redirect(url);
+  }
+
+  // Redirect authenticated users away from landing page to dashboard
+  if (user && pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
 

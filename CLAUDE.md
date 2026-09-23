@@ -603,6 +603,9 @@ ANTHROPIC_API_KEY=             # server-only
 | 28 | Pricing page polish — 90-Day button → amber outline (matches Monthly), remove supervisor justification copy box, add expense nudge line above cards | ✅ Done |
 | 29 | Roadmap restructure — 28-module NETA 2 curriculum across 5 phases, flat list UI with phase headers + domain badges, remove 80% unlock gate, free tier gates phases 2-5, "Start here" badge for new users, phase completion %, dashboard card → "28 modules across 5 phases" | ✅ Done |
 | 30 | Roadmap learn pages — new RoadmapLearnContent schema (overview/sections/key_values/exam_tips/summary), LearnPageContent server component, learn page rewrite with coming-soon fallback, generate_roadmap_content.py (claude-sonnet-4-6, resume support, --dry-run), Learn+Quiz buttons on module rows | ✅ Done |
+| 31 | Roadmap question gen fix — content-grounded prompts (fetch content_sections JSONB, flatten to text), post-generation rebalance_answers() for uniform A/B/C/D distribution; file cleanup (scripts/, scripts/data/, docs/reference/); Vercel env vars all 7 to Production + Preview; redeploy | ✅ Done |
+| 32 | Dashboard overhaul — replace domain mastery % with Exam Readiness Score (weighted last-100 exam_sim, null <25), Activity by Domain (4 cards, last-25 accuracy), Study Activity Stats (streak, total answered, sessions); single Supabase query pattern in readiness.ts | ✅ Done |
+| 33 | Landing page + unauthenticated routing fix — public / landing page (hero, social proof, features, comparison table, pricing preview, final CTA, footer); middleware: unauthenticated → /, authenticated / → /dashboard, /pricing public | ✅ Done |
 
 
 ---

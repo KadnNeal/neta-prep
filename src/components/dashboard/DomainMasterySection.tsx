@@ -17,8 +17,6 @@ function accuracyBarColor(pct: number): string {
 // ── Domain card ───────────────────────────────────────────────────────────────
 
 function DomainActivityCard({ d }: { d: DomainActivity }) {
-  const hasActivity = d.totalAnswered >= 10;
-
   return (
     <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex flex-col gap-4">
       {/* Header */}
