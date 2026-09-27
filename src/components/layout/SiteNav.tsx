@@ -23,9 +23,14 @@ export function SiteNav({
           href="/dashboard"
           className="flex items-center gap-2 text-sm font-semibold text-foreground hover:text-primary transition-colors duration-150"
         >
-          <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-            <span className="text-primary font-bold text-xs leading-none">N</span>
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
+            alt=""
+            width={22}
+            height={22}
+            className="shrink-0 dark:mix-blend-screen mix-blend-multiply"
+          />
           Pass NETA
         </Link>
 

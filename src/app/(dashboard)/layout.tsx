@@ -1,4 +1,5 @@
 import { SiteNav } from "@/components/layout/SiteNav";
+import { AppFooter } from "@/components/layout/AppFooter";
 import { createClient } from "@/lib/supabase/server";
 import { isActivePro } from "@/lib/stripe";
 import type { ProfileSubscription } from "@/lib/stripe";
@@ -28,9 +29,10 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <SiteNav subscriptionTier={subscriptionTier} />
-      {children}
+      <div className="flex-1">{children}</div>
+      <AppFooter />
     </div>
   );
 }

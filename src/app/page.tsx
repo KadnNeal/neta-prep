@@ -5,9 +5,13 @@ export default function LandingPage() {
     <div className="min-h-screen bg-[#09090b] text-[#fafafa] font-sans">
       {/* Navbar */}
       <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 md:px-12">
-        <span className="text-base font-semibold tracking-tight text-[#fafafa]">
-          Pass NETA
-        </span>
+        <Link href="/" className="flex items-center gap-2.5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Pass NETA logo" width={28} height={28} style={{ mixBlendMode: "screen" }} />
+          <span className="text-base font-semibold tracking-tight text-[#fafafa]">
+            Pass NETA
+          </span>
+        </Link>
         <nav className="flex items-center gap-3">
           <Link
             href="/login"
@@ -29,12 +33,13 @@ export default function LandingPage() {
         <section className="pt-40 pb-24 px-6 md:px-12 max-w-5xl mx-auto">
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.05] mb-6">
             Pass the NETA Level 2.{" "}
+            <br />
             <span className="text-[#ea580c]">First try.</span>
           </h1>
           <p className="text-lg md:text-xl text-[#a1a1aa] max-w-2xl mb-10 leading-relaxed">
-            Built by a working ETT. 3,000+ exam-style questions, structured
-            learning roadmap, and AI-powered explanations — grounded in real
-            recalled exam data.
+            Built by a working ETT. 3,000+ exam-style questions grounded in the
+            latest editions of NETA ATS, MTS, ECS, and NFPA 70E — with a
+            structured learning roadmap and AI-powered explanations.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
             <Link
@@ -51,14 +56,6 @@ export default function LandingPage() {
             </Link>
           </div>
         </section>
-
-        {/* Social proof bar */}
-        <div className="border-t border-b border-[#27272a] py-4 px-6 md:px-12">
-          <p className="text-sm text-[#71717a] text-center">
-            Built for NETA ETT Level 2 candidates. Grounded in NETA ATS 2025,
-            MTS 2023, and ECS 2024.
-          </p>
-        </div>
 
         {/* Feature highlights */}
         <section className="py-24 px-6 md:px-12 max-w-5xl mx-auto">
@@ -160,74 +157,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Comparison */}
-        <section className="py-16 px-6 md:px-12 max-w-3xl mx-auto">
-          <h2 className="text-xl font-semibold text-[#fafafa] mb-8 text-center">
-            How we compare
-          </h2>
-          <div className="border border-[#27272a] rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-[#27272a]">
-                  <th className="text-left py-3.5 px-5 text-[#71717a] font-medium w-1/2">
-                    Feature
-                  </th>
-                  <th className="text-center py-3.5 px-4 text-[#ea580c] font-semibold">
-                    Pass NETA
-                  </th>
-                  <th className="text-center py-3.5 px-4 text-[#71717a] font-medium">
-                    TestGuy
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  ["Structured learning roadmap", true, false],
-                  ["AI explanations per question", true, false],
-                  ["Grounded in NETA ATS 2025", true, false],
-                  ["Exam simulation mode", true, true],
-                  ["Topic-filtered practice", true, true],
-                  ["Price", "From $39/mo", "Free / $24.99"],
-                ].map(([feature, passNeta, testGuy], i) => (
-                  <tr
-                    key={i}
-                    className="border-b border-[#27272a] last:border-0"
-                  >
-                    <td className="py-3.5 px-5 text-[#a1a1aa]">{feature as string}</td>
-                    <td className="py-3.5 px-4 text-center">
-                      {typeof passNeta === "boolean" ? (
-                        passNeta ? (
-                          <span className="text-green-500 font-bold">✓</span>
-                        ) : (
-                          <span className="text-[#52525b]">✗</span>
-                        )
-                      ) : (
-                        <span className="text-[#ea580c] font-medium text-xs">
-                          {passNeta}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4 text-center">
-                      {typeof testGuy === "boolean" ? (
-                        testGuy ? (
-                          <span className="text-[#a1a1aa]">✓</span>
-                        ) : (
-                          <span className="text-[#52525b]">✗</span>
-                        )
-                      ) : (
-                        <span className="text-[#71717a] text-xs">{testGuy}</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-xs text-[#52525b] text-center mt-3">
-            Comparison based on publicly available information as of 2026.
-          </p>
-        </section>
-
         {/* Pricing preview */}
         <section className="py-16 px-6 md:px-12 max-w-3xl mx-auto">
           <h2 className="text-xl font-semibold text-[#fafafa] mb-2 text-center">
@@ -293,7 +222,11 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="border-t border-[#27272a] py-6 px-6 md:px-12 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-[#52525b]">
-        <span>Pass NETA &copy; 2026</span>
+        <span className="flex items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="" width={18} height={18} style={{ mixBlendMode: "screen" }} />
+          Pass NETA &copy; 2026
+        </span>
         <nav className="flex items-center gap-6">
           <Link href="/pricing" className="hover:text-[#a1a1aa] transition-colors">
             Pricing
@@ -303,6 +236,9 @@ export default function LandingPage() {
           </Link>
           <Link href="/signup" className="hover:text-[#a1a1aa] transition-colors">
             Sign Up
+          </Link>
+          <Link href="/terms" className="hover:text-[#a1a1aa] transition-colors">
+            Terms of Service
           </Link>
         </nav>
       </footer>

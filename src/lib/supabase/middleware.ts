@@ -42,6 +42,7 @@ export async function updateSession(request: NextRequest) {
   const isPublicRoute =
     pathname === "/" ||
     pathname === "/pricing" ||
+    pathname === "/terms" ||
     isAuthPage ||
     isOnboardingPage;
 
