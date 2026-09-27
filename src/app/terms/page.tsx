@@ -19,14 +19,14 @@ export default function TermsPage() {
         <h1 className="text-3xl font-bold text-[#fafafa] mb-10">Terms of Service</h1>
 
         <p className="text-sm text-[#a1a1aa] leading-relaxed mb-10">
-          These Terms of Service ("Terms") govern access to and use of Pass NETA (passneta.co),
+          These Terms of Service (&quot;Terms&quot;) govern access to and use of Pass NETA (passneta.co),
           an exam-preparation platform for NETA Level 2 certification candidates, operated by
-          PassNETA LLC ("Pass NETA," "we," "us," or "our"). By creating an account or using the
+          PassNETA LLC (&quot;Pass NETA,&quot; &quot;we,&quot; &quot;us,&quot; or &quot;our&quot;). By creating an account or using the
           site, you agree to these Terms and our Privacy Policy.
         </p>
 
         <Section title="1. Acceptance of Terms">
-          By creating an account, accessing, or using passneta.co (the "Service"), you agree to be
+          By creating an account, accessing, or using passneta.co (the &quot;Service&quot;), you agree to be
           bound by these Terms and our Privacy Policy. If you do not agree, do not use the Service.
           We may update these Terms from time to time as described in Section 9; continued use
           after an update means you accept the revised Terms.
@@ -69,7 +69,7 @@ export default function TermsPage() {
           the end of the current billing period, with access continuing until then.
           <br /><br />
           Fees are non-refundable except where required by law. If you upgrade from the 90-Day
-          Pass to the Annual plan, the $109 already paid is credited toward the Annual plan's price
+          Pass to the Annual plan, the $109 already paid is credited toward the Annual plan&apos;s price
           at the time of upgrade, and your Annual billing period is backdated to your original
           90-Day Pass purchase date. Free-tier access is limited and does not include full roadmap
           content, AI explanations, or exam simulations.
@@ -116,24 +116,24 @@ export default function TermsPage() {
           <strong className="text-[#fafafa]">No affiliation with NETA.</strong> Pass NETA is an
           independent study platform and is not affiliated with, endorsed by, or sponsored by the
           International Electrical Testing Association (NETA) or any NETA certification body.
-          "NETA" refers to the certification standards and exams administered by that association;
+          &quot;NETA&quot; refers to the certification standards and exams administered by that association;
           references to NETA on this site are for identification purposes only.
           <br /><br />
           <strong className="text-[#fafafa]">No guarantee of exam results.</strong> Use of the
-          Service, including any "exam readiness" scoring, does not guarantee that you will pass
+          Service, including any &quot;exam readiness&quot; scoring, does not guarantee that you will pass
           any NETA certification exam. Exam content, format, and passing criteria are determined
-          solely by NETA and may differ from the Service's practice content.
+          solely by NETA and may differ from the Service&apos;s practice content.
           <br /><br />
-          The Service is provided "as is" and "as available," without warranties of any kind,
+          The Service is provided &quot;as is&quot; and &quot;as available,&quot; without warranties of any kind,
           express or implied, including warranties of merchantability, fitness for a particular
           purpose, or non-infringement.
           <br /><br />
           <strong className="text-[#fafafa]">Not a substitute for field procedures.</strong> All
           platform content — including practice questions, AI explanations, and the learning
           roadmap — is provided solely for exam preparation. It is not a substitute for equipment
-          manufacturer instructions, your employer's approved testing procedures, or required
+          manufacturer instructions, your employer&apos;s approved testing procedures, or required
           safety training (including NFPA 70E and other applicable standards). Always follow your
-          employer's procedures and applicable safety requirements when performing actual
+          employer&apos;s procedures and applicable safety requirements when performing actual
           electrical testing work.
         </Section>
 
@@ -160,8 +160,8 @@ export default function TermsPage() {
           courts located in Maricopa County, Arizona, and you consent to their jurisdiction.
           <br /><br />
           <strong className="text-[#fafafa]">Changes to these Terms.</strong> We may revise these
-          Terms from time to time. We will post the updated Terms on this page with a new "Last
-          updated" date; material changes will be communicated by email or an in-app notice where
+          Terms from time to time. We will post the updated Terms on this page with a new &quot;Last
+          updated&quot; date; material changes will be communicated by email or an in-app notice where
           required. Continued use of the Service after changes take effect constitutes acceptance.
         </Section>
 

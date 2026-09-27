@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { isActivePro } from "@/lib/stripe";
 import type { ProfileSubscription } from "@/lib/stripe";
 
@@ -93,11 +93,16 @@ export async function GET(request: Request) {
       const today = new Date().toISOString().slice(0, 10);
       const lastDate = profile?.practice_count_date ?? null;
       const usedToday = lastDate === today ? (profile?.practice_questions_today ?? 0) : 0;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("profiles").update({
-        practice_questions_today: usedToday + questions.length,
-        practice_count_date: today,
-      }).eq("id", user.id);
+      // Counter columns aren't user-writable (otherwise a free user could reset
+      // their own cap from the browser), so write with the service role.
+      const { error: countError } = await createAdminClient()
+        .from("profiles")
+        .update({
+          practice_questions_today: usedToday + questions.length,
+          practice_count_date: today,
+        } as object)
+        .eq("id", user.id);
+      if (countError) throw countError;
     }
 
     // Check which questions the user has already bookmarked
