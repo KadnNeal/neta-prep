@@ -606,6 +606,9 @@ NO table-level UPDATE on `profiles`; it is granted UPDATE only on an allowlist:
 `username`, `neta_target_level`, `exam_date`, `practice_questions_today`,
 `practice_count_date` (migration `20260927120000_restrict_profile_billing_writes.sql`).
 A new user-editable profile column must be added to that grant or the update fails.
+Migrations S34/S35 were applied with `npx supabase db query --linked -f <file>` (needs
+`SUPABASE_DB_PASSWORD` in `.env.local`). Do NOT use `db push`: remote migration history
+stops at 20260418 (later ones were applied by hand), so it would re-run them.
 Note: a column-level `REVOKE` alone is a no-op while the table-level grant exists.
 
 ---
@@ -674,8 +677,8 @@ Note: a column-level `REVOKE` alone is a no-op while the table-level grant exist
 | 31 | Roadmap question gen fix — content-grounded prompts (fetch content_sections JSONB, flatten to text), post-generation rebalance_answers() for uniform A/B/C/D distribution; file cleanup (scripts/, scripts/data/, docs/reference/); Vercel env vars all 7 to Production + Preview; redeploy | ✅ Done |
 | 32 | Dashboard overhaul — replace domain mastery % with Exam Readiness Score (weighted last-100 exam_sim, null <25), Activity by Domain (4 cards, last-25 accuracy), Study Activity Stats (streak, total answered, sessions); single Supabase query pattern in readiness.ts | ✅ Done |
 | 33 | Landing page + unauthenticated routing fix — public / landing page (hero, social proof, features, comparison table, pricing preview, final CTA, footer); middleware: unauthenticated → /, authenticated / → /dashboard, /pricing public; /terms page (public), logo.png in SiteNav, AppFooter in dashboard layout | ✅ Done |
-| 34 | 90-Day Pass → Annual upgrade — profiles gets subscription_plan/access_started_at/stripe_amount_paid (reuses subscription_expires_at as access expiry), /api/upgrade-to-annual (difference charge backdated to pass start, or full-price Annual if expired), webhook idempotency via processed_stripe_events claim-first insert, Annual moved to one-time pricing, settings "Upgrade to Annual" block | ⏳ Migration pending |
-| 35 | Billing security fix — checkout `stripe_customer_id` write + webhook moved to `createAdminClient()` (service role); migration revokes table-level UPDATE on profiles from anon/authenticated and grants back only username/neta_target_level/exam_date/practice counter columns; update policy gets `with check (auth.uid() = id)`; S27 billing columns recorded in a migration; merged S34 into staging | ⏳ Migrations pending |
+| 34 | 90-Day Pass → Annual upgrade — profiles gets subscription_plan/access_started_at/stripe_amount_paid (reuses subscription_expires_at as access expiry), /api/upgrade-to-annual (difference charge backdated to pass start, or full-price Annual if expired), webhook idempotency via processed_stripe_events claim-first insert, Annual moved to one-time pricing, settings "Upgrade to Annual" block | ✅ Done |
+| 35 | Billing security fix — checkout `stripe_customer_id` write + webhook moved to `createAdminClient()` (service role); migration revokes table-level UPDATE on profiles from anon/authenticated and grants back only username/neta_target_level/exam_date/practice counter columns; update policy gets `with check (auth.uid() = id)`; S27 billing columns recorded in a migration; merged S34 into staging | ✅ Done |
 
 
 ---
