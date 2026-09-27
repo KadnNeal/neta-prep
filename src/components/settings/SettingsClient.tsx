@@ -440,16 +440,97 @@ function AppearanceSection() {
 
 // ── Subscription section ───────────────────────────────────────────────────────
 
+const ANNUAL_PRICE_CENTS = 29900;
+
+const PLAN_LABELS: Record<string, string> = {
+  monthly: "Monthly",
+  "90_day_pass": "90-Day Pass",
+  annual: "Annual",
+};
+
+function formatUsd(cents: number): string {
+  return cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`;
+}
+
+function UpgradeToAnnual({
+  isExpired,
+  amountPaidCents,
+}: {
+  isExpired: boolean;
+  amountPaidCents: number | null;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleUpgrade() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/upgrade-to-annual", { method: "POST" });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setError(data.error ?? "Could not start upgrade.");
+        setLoading(false);
+      }
+    } catch {
+      setError("Could not start upgrade.");
+      setLoading(false);
+    }
+  }
+
+  const message = (() => {
+    if (isExpired) {
+      return `Your 90-Day Pass has expired — get a full year of access for ${formatUsd(ANNUAL_PRICE_CENTS)}.`;
+    }
+    if (amountPaidCents === null) {
+      return "Upgrade to Annual Access — your 90-Day Pass is credited toward the price.";
+    }
+    const difference = Math.max(ANNUAL_PRICE_CENTS - amountPaidCents, 0);
+    return `You've already paid ${formatUsd(amountPaidCents)} — upgrade for ${formatUsd(difference)} more.`;
+  })();
+
+  return (
+    <div className="border-t border-border pt-4 space-y-3">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-foreground">Upgrade to Annual</p>
+          <p className="text-xs text-muted-foreground">{message}</p>
+          {!isExpired && (
+            <p className="text-xs text-muted-foreground">
+              Your year of access counts from your original pass start date.
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={handleUpgrade}
+          disabled={loading}
+          className="shrink-0 bg-primary text-primary-foreground font-medium text-sm px-4 py-2 rounded-lg hover:opacity-90 disabled:opacity-50 transition-all duration-150"
+        >
+          {loading ? "Loading…" : "Upgrade to Annual"}
+        </button>
+      </div>
+      {error && <StatusMessage type="error" message={error} />}
+    </div>
+  );
+}
+
 function SubscriptionSection({
   subscriptionTier,
   subscriptionStatus,
   subscriptionExpiresAt,
   hasStripeCustomer,
+  subscriptionPlan,
+  amountPaidCents,
 }: {
   subscriptionTier: "free" | "pro";
   subscriptionStatus: string | null;
   subscriptionExpiresAt: string | null;
   hasStripeCustomer: boolean;
+  subscriptionPlan: string | null;
+  amountPaidCents: number | null;
 }) {
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalError, setPortalError] = useState<string | null>(null);
@@ -474,7 +555,7 @@ function SubscriptionSection({
 
   const isPro = subscriptionTier === "pro";
 
-  const tierLabel = isPro ? "Pro" : "Free";
+  const tierLabel = isPro ? (subscriptionPlan && PLAN_LABELS[subscriptionPlan]) || "Pro" : "Free";
   const statusBadge = subscriptionStatus === "past_due" ? "Past Due" : isPro ? "Active" : "Free";
   const badgeColor =
     subscriptionStatus === "past_due"
@@ -537,6 +618,9 @@ function SubscriptionSection({
         </div>
       </div>
       {portalError && <StatusMessage type="error" message={portalError} />}
+      {subscriptionPlan === "90_day_pass" && (
+        <UpgradeToAnnual isExpired={!isPro} amountPaidCents={amountPaidCents} />
+      )}
     </Section>
   );
 }
@@ -658,6 +742,8 @@ interface Props {
   subscriptionStatus: string | null;
   subscriptionExpiresAt: string | null;
   hasStripeCustomer: boolean;
+  subscriptionPlan: string | null;
+  amountPaidCents: number | null;
 }
 
 export function SettingsClient({
@@ -669,6 +755,8 @@ export function SettingsClient({
   subscriptionStatus,
   subscriptionExpiresAt,
   hasStripeCustomer,
+  subscriptionPlan,
+  amountPaidCents,
 }: Props) {
   return (
     <div className="space-y-5">
@@ -686,6 +774,8 @@ export function SettingsClient({
         subscriptionStatus={subscriptionStatus}
         subscriptionExpiresAt={subscriptionExpiresAt}
         hasStripeCustomer={hasStripeCustomer}
+        subscriptionPlan={subscriptionPlan}
+        amountPaidCents={amountPaidCents}
       />
       <DangerZoneSection />
     </div>

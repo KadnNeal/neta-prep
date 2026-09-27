@@ -12,8 +12,33 @@ export const PRICE_IDS = {
 } as const;
 
 // One-time payments (not subscriptions)
-export const ONE_TIME_PRICES = new Set<string>([PRICE_IDS.pass90]);
+export const ONE_TIME_PRICES = new Set<string>([PRICE_IDS.pass90, PRICE_IDS.annual]);
 export const VALID_PRICE_IDS = new Set<string>(Object.values(PRICE_IDS));
+
+export type SubscriptionPlan = "monthly" | "90_day_pass" | "annual";
+
+export const PLAN_BY_PRICE: Record<string, SubscriptionPlan> = {
+  [PRICE_IDS.monthly]: "monthly",
+  [PRICE_IDS.pass90]: "90_day_pass",
+  [PRICE_IDS.annual]: "annual",
+};
+
+/** Access length for one-time plans; null = recurring (no fixed expiry). */
+export const PLAN_ACCESS_DAYS: Record<SubscriptionPlan, number | null> = {
+  monthly: null,
+  "90_day_pass": 90,
+  annual: 365,
+};
+
+export const ANNUAL_PRICE_CENTS = 29900;
+
+export type UpgradeType = "90_day_to_annual_backdated" | "annual_fresh_after_expired_pass";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function addDays(from: Date, days: number): Date {
+  return new Date(from.getTime() + days * DAY_MS);
+}
 
 export interface ProfileSubscription {
   subscription_tier: string | null;

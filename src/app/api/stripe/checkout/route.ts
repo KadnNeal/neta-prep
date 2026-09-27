@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { stripe, ONE_TIME_PRICES, VALID_PRICE_IDS } from "@/lib/stripe";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { stripe, ONE_TIME_PRICES, VALID_PRICE_IDS, PLAN_BY_PRICE } from "@/lib/stripe";
 
 interface CheckoutBody {
   priceId: string;
@@ -32,8 +32,12 @@ export async function POST(request: Request) {
         metadata: { supabase_user_id: user.id },
       });
       customerId = customer.id;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("profiles").update({ stripe_customer_id: customerId }).eq("id", user.id);
+      // stripe_customer_id is a billing column — users can't write it, so use the service role
+      const { error: saveError } = await createAdminClient()
+        .from("profiles")
+        .update({ stripe_customer_id: customerId } as object)
+        .eq("id", user.id);
+      if (saveError) throw saveError;
     }
 
     const mode = ONE_TIME_PRICES.has(priceId) ? "payment" : "subscription";
@@ -45,7 +49,7 @@ export async function POST(request: Request) {
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${origin}/dashboard?upgraded=true`,
       cancel_url: `${origin}/pricing`,
-      metadata: { supabase_user_id: user.id },
+      metadata: { supabase_user_id: user.id, plan: PLAN_BY_PRICE[priceId] },
       allow_promotion_codes: true,
     });
 
