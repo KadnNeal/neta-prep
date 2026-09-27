@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient as createSupabaseAdmin } from "@supabase/supabase-js";
-import { stripe } from "@/lib/stripe";
+import { stripe, addDays, PLAN_ACCESS_DAYS } from "@/lib/stripe";
+import type { SubscriptionPlan, UpgradeType } from "@/lib/stripe";
 import type Stripe from "stripe";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,91 @@ async function getUserIdByCustomer(customerId: string): Promise<string | null> {
 
 async function updateProfile(userId: string, fields: Record<string, unknown>) {
   const supabase = adminClient();
-  await supabase.from("profiles").update(fields as object).eq("id", userId);
+  const { error } = await supabase.from("profiles").update(fields as object).eq("id", userId);
+  if (error) throw error;
+}
+
+/**
+ * Atomically claims an event by inserting its id (primary key). Returns false
+ * if another delivery already claimed it — no separate check-then-insert race.
+ */
+async function claimEvent(eventId: string): Promise<boolean> {
+  const supabase = adminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("processed_stripe_events")
+    .insert({ event_id: eventId });
+  if (!error) return true;
+  if ((error as { code?: string }).code === "23505") return false; // unique_violation
+  throw error;
+}
+
+/** Releases a claim after a processing failure so Stripe's retry can reprocess it. */
+async function releaseEvent(eventId: string) {
+  const supabase = adminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("processed_stripe_events")
+    .delete()
+    .eq("event_id", eventId);
+  if (error) console.error("[stripe/webhook] failed to release event claim", eventId, error);
+}
+
+function isPlan(value: string | undefined): value is SubscriptionPlan {
+  return !!value && value in PLAN_ACCESS_DAYS;
+}
+
+async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+  const userId = session.metadata?.supabase_user_id;
+  if (!userId) return;
+
+  const upgradeType = session.metadata?.upgrade_type as UpgradeType | undefined;
+  const amountPaid = session.amount_total ?? 0;
+  const now = new Date();
+
+  if (upgradeType === "90_day_to_annual_backdated") {
+    const originalStartedAt = session.metadata?.original_access_started_at;
+    if (!originalStartedAt) throw new Error("Missing original_access_started_at on backdated upgrade");
+    const originalAmountPaid = Number(session.metadata?.original_amount_paid ?? 0);
+
+    // access_started_at is left untouched — annual period runs from the original pass start
+    await updateProfile(userId, {
+      subscription_tier: "pro",
+      subscription_status: "active",
+      subscription_plan: "annual",
+      subscription_expires_at: addDays(new Date(originalStartedAt), 365).toISOString(),
+      stripe_amount_paid: originalAmountPaid + amountPaid,
+    });
+    return;
+  }
+
+  if (upgradeType === "annual_fresh_after_expired_pass") {
+    await updateProfile(userId, {
+      subscription_tier: "pro",
+      subscription_status: "active",
+      subscription_plan: "annual",
+      access_started_at: now.toISOString(),
+      subscription_expires_at: addDays(now, 365).toISOString(),
+      stripe_amount_paid: amountPaid,
+    });
+    return;
+  }
+
+  // Standard purchase. Sessions created before `plan` metadata existed fall back to mode.
+  const metaPlan = session.metadata?.plan;
+  const plan: SubscriptionPlan = isPlan(metaPlan)
+    ? metaPlan
+    : session.mode === "payment" ? "90_day_pass" : "monthly";
+  const accessDays = PLAN_ACCESS_DAYS[plan];
+
+  await updateProfile(userId, {
+    subscription_tier: "pro",
+    subscription_status: "active",
+    subscription_plan: plan,
+    access_started_at: now.toISOString(),
+    subscription_expires_at: accessDays ? addDays(now, accessDays).toISOString() : null,
+    stripe_amount_paid: amountPaid,
+  });
 }
 
 export async function POST(request: Request) {
@@ -41,22 +126,17 @@ export async function POST(request: Request) {
   }
 
   try {
+    const claimed = await claimEvent(event.id);
+    if (!claimed) return NextResponse.json({ received: true, duplicate: true });
+  } catch (err) {
+    console.error("[stripe/webhook] failed to claim event", event.id, err);
+    return NextResponse.json({ error: "Handler failed" }, { status: 500 });
+  }
+
+  try {
     switch (event.type) {
       case "checkout.session.completed": {
-        const session = event.data.object as Stripe.Checkout.Session;
-        const userId = session.metadata?.supabase_user_id;
-        if (!userId) break;
-
-        const is90Day = session.mode === "payment";
-        const expiresAt = is90Day
-          ? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
-          : null;
-
-        await updateProfile(userId, {
-          subscription_tier: "pro",
-          subscription_status: "active",
-          subscription_expires_at: expiresAt,
-        });
+        await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
         break;
       }
 
@@ -90,6 +170,7 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     console.error("[stripe/webhook] handler error", event.type, err);
+    await releaseEvent(event.id);
     return NextResponse.json({ error: "Handler failed" }, { status: 500 });
   }
 

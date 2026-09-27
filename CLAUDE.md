@@ -606,6 +606,7 @@ ANTHROPIC_API_KEY=             # server-only
 | 31 | Roadmap question gen fix — content-grounded prompts (fetch content_sections JSONB, flatten to text), post-generation rebalance_answers() for uniform A/B/C/D distribution; file cleanup (scripts/, scripts/data/, docs/reference/); Vercel env vars all 7 to Production + Preview; redeploy | ✅ Done |
 | 32 | Dashboard overhaul — replace domain mastery % with Exam Readiness Score (weighted last-100 exam_sim, null <25), Activity by Domain (4 cards, last-25 accuracy), Study Activity Stats (streak, total answered, sessions); single Supabase query pattern in readiness.ts | ✅ Done |
 | 33 | Landing page + unauthenticated routing fix — public / landing page (hero, social proof, features, comparison table, pricing preview, final CTA, footer); middleware: unauthenticated → /, authenticated / → /dashboard, /pricing public | ✅ Done |
+| 34 | 90-Day Pass → Annual upgrade — profiles gets subscription_plan/access_started_at/stripe_amount_paid (reuses subscription_expires_at as access expiry), /api/upgrade-to-annual (difference charge backdated to pass start, or full-price Annual if expired), webhook idempotency via processed_stripe_events claim-first insert, Annual moved to one-time pricing, settings "Upgrade to Annual" block | ⏳ Migration pending |
 
 
 ---

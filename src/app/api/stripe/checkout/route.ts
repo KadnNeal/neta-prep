@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { stripe, ONE_TIME_PRICES, VALID_PRICE_IDS } from "@/lib/stripe";
+import { stripe, ONE_TIME_PRICES, VALID_PRICE_IDS, PLAN_BY_PRICE } from "@/lib/stripe";
 
 interface CheckoutBody {
   priceId: string;
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${origin}/dashboard?upgraded=true`,
       cancel_url: `${origin}/pricing`,
-      metadata: { supabase_user_id: user.id },
+      metadata: { supabase_user_id: user.id, plan: PLAN_BY_PRICE[priceId] },
       allow_promotion_codes: true,
     });
 

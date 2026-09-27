@@ -15,7 +15,7 @@ export default async function SettingsPage() {
 
   const { data: profileRaw } = await supabase
     .from("profiles")
-    .select("username, subscription_tier, subscription_status, subscription_expires_at, stripe_customer_id")
+    .select("username, subscription_tier, subscription_status, subscription_expires_at, stripe_customer_id, subscription_plan, stripe_amount_paid")
     .eq("id", user.id)
     .single();
 
@@ -25,6 +25,8 @@ export default async function SettingsPage() {
     subscription_status: string | null;
     subscription_expires_at: string | null;
     stripe_customer_id: string | null;
+    subscription_plan: string | null;
+    stripe_amount_paid: number | null;
   } | null;
 
   const isOAuthUser = (user.app_metadata?.provider ?? "email") !== "email";
@@ -51,6 +53,8 @@ export default async function SettingsPage() {
           subscriptionStatus={profile?.subscription_status ?? null}
           subscriptionExpiresAt={profile?.subscription_expires_at ?? null}
           hasStripeCustomer={!!profile?.stripe_customer_id}
+          subscriptionPlan={profile?.subscription_plan ?? null}
+          amountPaidCents={profile?.stripe_amount_paid ?? null}
         />
       </div>
     </main>
