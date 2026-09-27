@@ -599,9 +599,14 @@ Routes:
 Gating: `isActivePro()` in `src/lib/stripe.ts`. Free tier: roadmap phase 1 only,
 practice 15/day, no AI explanations, no exam simulator.
 
-⚠️ Known issue: the `"Users can update own profile"` RLS policy allows updating ANY
-column, including billing fields. Needs column-level grants (and moving
-`stripe_customer_id` writes to the service-role client) before launch.
+Billing writes (S35): every write to a billing column goes through
+`createAdminClient()` (`src/lib/supabase/server.ts`, service role, server-only) —
+the webhook and checkout's `stripe_customer_id` save. The `authenticated` role has
+NO table-level UPDATE on `profiles`; it is granted UPDATE only on an allowlist:
+`username`, `neta_target_level`, `exam_date`, `practice_questions_today`,
+`practice_count_date` (migration `20260927120000_restrict_profile_billing_writes.sql`).
+A new user-editable profile column must be added to that grant or the update fails.
+Note: a column-level `REVOKE` alone is a no-op while the table-level grant exists.
 
 ---
 
@@ -670,6 +675,7 @@ column, including billing fields. Needs column-level grants (and moving
 | 32 | Dashboard overhaul — replace domain mastery % with Exam Readiness Score (weighted last-100 exam_sim, null <25), Activity by Domain (4 cards, last-25 accuracy), Study Activity Stats (streak, total answered, sessions); single Supabase query pattern in readiness.ts | ✅ Done |
 | 33 | Landing page + unauthenticated routing fix — public / landing page (hero, social proof, features, comparison table, pricing preview, final CTA, footer); middleware: unauthenticated → /, authenticated / → /dashboard, /pricing public; /terms page (public), logo.png in SiteNav, AppFooter in dashboard layout | ✅ Done |
 | 34 | 90-Day Pass → Annual upgrade — profiles gets subscription_plan/access_started_at/stripe_amount_paid (reuses subscription_expires_at as access expiry), /api/upgrade-to-annual (difference charge backdated to pass start, or full-price Annual if expired), webhook idempotency via processed_stripe_events claim-first insert, Annual moved to one-time pricing, settings "Upgrade to Annual" block | ⏳ Migration pending |
+| 35 | Billing security fix — checkout `stripe_customer_id` write + webhook moved to `createAdminClient()` (service role); migration revokes table-level UPDATE on profiles from anon/authenticated and grants back only username/neta_target_level/exam_date/practice counter columns; update policy gets `with check (auth.uid() = id)`; S27 billing columns recorded in a migration; merged S34 into staging | ⏳ Migrations pending |
 
 
 ---
