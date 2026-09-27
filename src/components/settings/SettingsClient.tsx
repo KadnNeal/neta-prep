@@ -482,7 +482,7 @@ function UpgradeToAnnual({
 
   const message = (() => {
     if (isExpired) {
-      return `Your 90-Day Pass has expired — get a full year of access for ${formatUsd(ANNUAL_PRICE_CENTS)}.`;
+      return `Your 90-Day Pass has expired — switch to Annual for ${formatUsd(ANNUAL_PRICE_CENTS)}/year.`;
     }
     if (amountPaidCents === null) {
       return "Upgrade to Annual Access — your 90-Day Pass is credited toward the price.";

@@ -1,11 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
-import { isActivePro } from "@/lib/stripe";
-import type { ProfileSubscription } from "@/lib/stripe";
+import { currentPlan } from "@/lib/stripe";
+import type { ProfileSubscription, SubscriptionPlan } from "@/lib/stripe";
 import { SiteNav } from "@/components/layout/SiteNav";
 import { PricingClient } from "@/components/pricing/PricingClient";
 
 export default async function PricingPage() {
-  let subscriptionTier: "free" | "pro" = "free";
+  let plan: SubscriptionPlan | "unknown" | null = null;
+  let amountPaidCents: number | null = null;
   let isLoggedIn = false;
 
   try {
@@ -15,11 +16,15 @@ export default async function PricingPage() {
       isLoggedIn = true;
       const { data: profile } = await supabase
         .from("profiles")
-        .select("subscription_tier, subscription_status, subscription_expires_at, stripe_customer_id")
+        .select("subscription_tier, subscription_status, subscription_expires_at, stripe_customer_id, subscription_plan, stripe_amount_paid")
         .eq("id", user.id)
         .single();
-      if (profile && isActivePro(profile as unknown as ProfileSubscription)) {
-        subscriptionTier = "pro";
+      const p = profile as unknown as
+        | (ProfileSubscription & { subscription_plan: string | null; stripe_amount_paid: number | null })
+        | null;
+      if (p) {
+        plan = currentPlan(p);
+        amountPaidCents = p.stripe_amount_paid;
       }
     }
   } catch {
@@ -28,8 +33,8 @@ export default async function PricingPage() {
 
   return (
     <>
-      <SiteNav subscriptionTier={subscriptionTier} />
-      <PricingClient isLoggedIn={isLoggedIn} subscriptionTier={subscriptionTier} />
+      <SiteNav subscriptionTier={plan ? "pro" : "free"} />
+      <PricingClient isLoggedIn={isLoggedIn} currentPlan={plan} amountPaidCents={amountPaidCents} />
     </>
   );
 }

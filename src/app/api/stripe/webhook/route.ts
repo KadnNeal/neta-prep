@@ -63,20 +63,28 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   if (!userId) return;
 
   const upgradeType = session.metadata?.upgrade_type as UpgradeType | undefined;
-  const amountPaid = session.amount_total ?? 0;
+  // Amount actually paid for the product: after discounts, excluding tax (Stripe
+  // Managed Payments adds tax on top), so upgrade credit matches the list price basis.
+  const amountPaid = (session.amount_total ?? 0) - (session.total_details?.amount_tax ?? 0);
   const now = new Date();
+  // Save the customer Stripe used (Checkout creates one if the session had none) so
+  // customer.subscription.deleted can find this user later.
+  const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+  const customerField = customerId ? { stripe_customer_id: customerId } : {};
 
   if (upgradeType === "90_day_to_annual_backdated") {
     const originalStartedAt = session.metadata?.original_access_started_at;
     if (!originalStartedAt) throw new Error("Missing original_access_started_at on backdated upgrade");
     const originalAmountPaid = Number(session.metadata?.original_amount_paid ?? 0);
 
-    // access_started_at is left untouched — annual period runs from the original pass start
+    // access_started_at is left untouched — the subscription's first renewal is anchored
+    // to original pass start + 365 days. Annual is recurring, so no fixed expiry.
     await updateProfile(userId, {
+      ...customerField,
       subscription_tier: "pro",
       subscription_status: "active",
       subscription_plan: "annual",
-      subscription_expires_at: addDays(new Date(originalStartedAt), 365).toISOString(),
+      subscription_expires_at: null,
       stripe_amount_paid: originalAmountPaid + amountPaid,
     });
     return;
@@ -84,11 +92,12 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   if (upgradeType === "annual_fresh_after_expired_pass") {
     await updateProfile(userId, {
+      ...customerField,
       subscription_tier: "pro",
       subscription_status: "active",
       subscription_plan: "annual",
       access_started_at: now.toISOString(),
-      subscription_expires_at: addDays(now, 365).toISOString(),
+      subscription_expires_at: null,
       stripe_amount_paid: amountPaid,
     });
     return;
@@ -102,6 +111,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const accessDays = PLAN_ACCESS_DAYS[plan];
 
   await updateProfile(userId, {
+    ...customerField,
     subscription_tier: "pro",
     subscription_status: "active",
     subscription_plan: plan,

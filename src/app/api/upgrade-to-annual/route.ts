@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { stripe, PRICE_IDS, ANNUAL_PRICE_CENTS } from "@/lib/stripe";
+import { stripe, PRICE_IDS, ANNUAL_PRICE_CENTS, addDays } from "@/lib/stripe";
 import type { UpgradeType } from "@/lib/stripe";
 
 // Stripe's minimum charge for USD Checkout Sessions
 const STRIPE_MIN_CHARGE_CENTS = 50;
+// Tax code on the Pass NETA products in Stripe (txcd_10103001)
+const STRIPE_TAX_CODE = "txcd_10103001";
 
 interface UpgradeProfile {
   stripe_customer_id: string | null;
@@ -43,11 +45,11 @@ export async function POST(request: Request) {
       const upgradeType: UpgradeType = "annual_fresh_after_expired_pass";
       const session = await stripe.checkout.sessions.create({
         customer,
-        mode: "payment",
+        mode: "subscription",
         line_items: [{ price: PRICE_IDS.annual, quantity: 1 }],
         success_url: successUrl,
         cancel_url: cancelUrl,
-        metadata: { supabase_user_id: user.id, upgrade_type: upgradeType },
+        metadata: { supabase_user_id: user.id, upgrade_type: upgradeType, plan: "annual" },
         allow_promotion_codes: true,
       });
       return NextResponse.json({ url: session.url });
@@ -68,11 +70,18 @@ export async function POST(request: Request) {
       );
     }
 
+    // Annual is a yearly subscription. Charge only the difference today (one-time
+    // line item, paid on the first invoice) and trial the recurring $299 until
+    // original pass start + 365 days, so the first renewal lands on the anniversary.
+    // (Stripe rejects proration_behavior "none" alongside one-time prices.)
+    const renewsAt = addDays(new Date(profile.access_started_at), 365);
     const upgradeType: UpgradeType = "90_day_to_annual_backdated";
     const session = await stripe.checkout.sessions.create({
       customer,
-      mode: "payment",
+      mode: "subscription",
+      subscription_data: { trial_end: Math.floor(renewsAt.getTime() / 1000) },
       line_items: [
+        { price: PRICE_IDS.annual, quantity: 1 },
         {
           quantity: 1,
           price_data: {
@@ -80,7 +89,9 @@ export async function POST(request: Request) {
             unit_amount: difference,
             product_data: {
               name: "Annual Access — upgrade from 90-Day Pass",
-              description: "90-Day Pass credit applied. Annual access runs from your original pass start date.",
+              // Required by Stripe Managed Payments; same code as the Annual product
+              tax_code: STRIPE_TAX_CODE,
+              description: "90-Day Pass credit applied. Your annual plan renews one year after your original pass start date.",
             },
           },
         },
@@ -92,6 +103,7 @@ export async function POST(request: Request) {
         upgrade_type: upgradeType,
         original_access_started_at: profile.access_started_at,
         original_amount_paid: String(profile.stripe_amount_paid),
+        plan: "annual",
       },
       allow_promotion_codes: true,
     });

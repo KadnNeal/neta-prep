@@ -580,23 +580,39 @@ Brand: **Pass NETA**. Stripe client + price IDs live in `src/lib/stripe.ts`.
 |------|----------|------|--------|
 | Monthly | `price_1TwBWiGO8TgYfwMNwySrPsXi` | subscription | recurring, `subscription_expires_at` null |
 | 90-Day Pass | `price_1TwBYkGO8TgYfwMNV9fpFBZS` | one-time, $109 | 90 days |
-| Annual | `price_1TwBXJGO8TgYfwMNfnF7f9Kw` | one-time, $299 | 365 days |
+| Annual | `price_1TwBXJGO8TgYfwMNfnF7f9Kw` | subscription, $299/yr | recurring, `subscription_expires_at` null |
+
+Stripe account has **Managed Payments** on: tax is added on top of list price, and any
+inline `price_data` product MUST set `tax_code` (products use `txcd_10103001`).
+`stripe_amount_paid` stores `amount_total - total_details.amount_tax` (pre-tax, post-discount).
+Test mode has NO webhook endpoint registered yet (as of S37) — purchases don't update
+profiles until one is added for staging with its secret in Vercel `STRIPE_WEBHOOK_SECRET`.
 
 Routes:
-- `POST /api/stripe/checkout` — `{ priceId }` → `{ url }`; metadata `{ supabase_user_id, plan }`
+- `POST /api/stripe/checkout` — `{ priceId }` → `{ url }`; metadata `{ supabase_user_id, plan }`.
+  Duplicate-purchase guard (S37): reads the profile with the service role; if
+  `currentPlan()` is non-null → 400 `{ code: 'already_subscribed' }` (or `'use_upgrade'`
+  for a 90-Day holder requesting Annual). Pricing page redirects both to /settings.
 - `POST /api/stripe/webhook` — `checkout.session.completed`, `customer.subscription.deleted`,
   `invoice.payment_failed`. Claims `event.id` by INSERT into `processed_stripe_events`
   first (PK conflict = duplicate → 200); on handler failure the claim is deleted and 500
   returned so Stripe retries. Profile update errors must throw, never be swallowed.
+  Also saves `session.customer` as `stripe_customer_id` (Checkout may create the customer).
 - `POST /api/stripe/portal` — Stripe billing portal
 - `POST /api/upgrade-to-annual` — 90-Day Pass → Annual (S34):
-  - Pass still active → charge `29900 - stripe_amount_paid` via `price_data`,
-    `upgrade_type: '90_day_to_annual_backdated'`; webhook sets expiry =
-    original `access_started_at` + 365d and `stripe_amount_paid` = original + difference
-  - Pass expired → full-price Annual price, `upgrade_type: 'annual_fresh_after_expired_pass'`
+  - Pass still active → subscription Checkout: Annual price + one-time `price_data` line
+    for `29900 - stripe_amount_paid`, `subscription_data.trial_end` = original
+    `access_started_at` + 365d (first $299 renewal on the anniversary). Stripe rejects
+    `proration_behavior: 'none'` with one-time items, hence the trial. Webhook: plan
+    annual, expiry null, `stripe_amount_paid` = original + difference
+  - Pass expired → full-price Annual subscription, `upgrade_type: 'annual_fresh_after_expired_pass'`
   - Rejects if `stripe_amount_paid` is null (pre-S34 purchases) or difference < $0.50
 
-Gating: `isActivePro()` in `src/lib/stripe.ts`. Free tier: roadmap phase 1 only,
+Gating: `isActivePro()` in `src/lib/stripe.ts`; `currentPlan()` returns the active plan
+(falls back to `subscription_tier` for legacy rows), `'unknown'`, or null for free.
+Post-checkout: `?upgraded=true` → `UpgradeSuccessNotice` (in the `(dashboard)` layout)
+strips the param and `router.refresh()`es every 2s (max 10) until the profile reads pro,
+since the webhook can land after the redirect and layouts don't re-render on navigation. Free tier: roadmap phase 1 only,
 practice 15/day, no AI explanations, no exam simulator.
 
 Billing writes (S35): every write to a billing column goes through
@@ -681,6 +697,7 @@ Note: a column-level `REVOKE` alone is a no-op while the table-level grant exist
 | 34 | 90-Day Pass → Annual upgrade — profiles gets subscription_plan/access_started_at/stripe_amount_paid (reuses subscription_expires_at as access expiry), /api/upgrade-to-annual (difference charge backdated to pass start, or full-price Annual if expired), webhook idempotency via processed_stripe_events claim-first insert, Annual moved to one-time pricing, settings "Upgrade to Annual" block | ✅ Done |
 | 35 | Billing security fix — checkout `stripe_customer_id` write + webhook moved to `createAdminClient()` (service role); migration revokes table-level UPDATE on profiles from anon/authenticated and grants back only username/neta_target_level/exam_date/practice counter columns; update policy gets `with check (auth.uid() = id)`; S27 billing columns recorded in a migration; merged S34 into staging | ✅ Done |
 | 36 | Lint + practice cap hardening — escape 26 quotes in /terms (react/no-unescaped-entities), ESLint ignores `.claude/**` (worktree checkouts), practice counter write moved to `createAdminClient()` with error check, migration revokes authenticated UPDATE on practice_questions_today/practice_count_date | ⏳ Migration pending (apply after deploy) |
+| 37 | Post-checkout + purchase guard — `?upgraded=true` success notice strips the param and refreshes until the webhook lands (fixes stale nav Upgrade button); pricing page marks the real current plan, other paid tiers → "Manage billing in Settings", 90-Day holders get an Annual upgrade button; checkout duplicate-purchase guard (service role, `currentPlan()`); Annual kept as a recurring $299/yr subscription (was being sent as one-time → Stripe error) and the backdated upgrade reworked to a trial_end subscription; `tax_code` on inline prices (Managed Payments); webhook stores pre-tax amount + customer id | ⏳ Needs staging webhook endpoint |
 
 
 ---

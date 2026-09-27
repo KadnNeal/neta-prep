@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Check, Lock, Zap } from "lucide-react";
+import type { SubscriptionPlan } from "@/lib/stripe";
 // Price IDs duplicated here (not imported from stripe.ts) to keep the Stripe SDK server-only
 const PRICE_IDS = {
   monthly: "price_1TwBWiGO8TgYfwMNwySrPsXi",
@@ -10,9 +11,19 @@ const PRICE_IDS = {
   pass90:  "price_1TwBYkGO8TgYfwMNV9fpFBZS",
 } as const;
 
+const ANNUAL_PRICE_CENTS = 29900;
+
+type CurrentPlan = SubscriptionPlan | "unknown" | null;
+
 interface Props {
   isLoggedIn: boolean;
-  subscriptionTier: "free" | "pro";
+  /** Plan with active paid access; "unknown" = paid but plan not recorded; null = free */
+  currentPlan: CurrentPlan;
+  amountPaidCents: number | null;
+}
+
+function formatUsd(cents: number): string {
+  return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 }
 
 // ── Supervisor justification copy box ─────────────────────────────────────────
@@ -20,21 +31,26 @@ interface Props {
 // ── Checkout button ───────────────────────────────────────────────────────────
 
 function CheckoutButton({
+  plan,
   priceId,
   label,
   isLoggedIn,
-  isPro,
+  currentPlan,
+  amountPaidCents,
   className = "",
 }: {
+  plan: SubscriptionPlan;
   priceId: string;
   label: string;
   isLoggedIn: boolean;
-  isPro: boolean;
+  currentPlan: CurrentPlan;
+  amountPaidCents: number | null;
   className?: string;
 }) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  if (isPro) {
+  if (currentPlan === plan) {
     return (
       <span className="w-full flex items-center justify-center gap-2 py-3 text-sm font-semibold text-green-500 bg-green-500/10 border border-green-500/20 rounded-xl">
         <Check size={15} />
@@ -54,33 +70,78 @@ function CheckoutButton({
     );
   }
 
-  async function handleCheckout() {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId }),
-      });
-      const data = (await res.json()) as { url?: string; error?: string };
-      if (data.url) window.location.href = data.url;
-    } catch {
-      setLoading(false);
-    }
+  // 90-Day Pass holders upgrade to Annual with their pass credited.
+  const isPassUpgrade = currentPlan === "90_day_pass" && plan === "annual";
+
+  // Any other paid plan: no second purchase — billing changes happen in Settings.
+  if (currentPlan && !isPassUpgrade) {
+    return (
+      <Link
+        href="/settings"
+        className="w-full flex items-center justify-center py-3 text-sm font-semibold text-muted-foreground bg-muted rounded-xl hover:bg-muted/80 transition-all duration-150"
+      >
+        Manage billing in Settings
+      </Link>
+    );
   }
 
+  async function handleCheckout() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = isPassUpgrade
+        ? await fetch("/api/upgrade-to-annual", { method: "POST" })
+        : await fetch("/api/stripe/checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ priceId }),
+          });
+      const data = (await res.json()) as { url?: string; error?: string; code?: string };
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      if (data.code === "already_subscribed" || data.code === "use_upgrade") {
+        window.location.href = "/settings";
+        return;
+      }
+      setError(data.error ?? "Checkout couldn't start. Please try again.");
+    } catch {
+      setError("Checkout couldn't start. Please try again.");
+    }
+    setLoading(false);
+  }
+
+  const buttonLabel = isPassUpgrade
+    ? amountPaidCents !== null
+      ? `Upgrade for ${formatUsd(Math.max(ANNUAL_PRICE_CENTS - amountPaidCents, 0))} more`
+      : "Upgrade to Annual"
+    : label;
+
   return (
-    <button
-      type="button"
-      onClick={handleCheckout}
-      disabled={loading}
-      className={`w-full flex items-center justify-center gap-2 py-3 text-sm font-semibold rounded-xl transition-all duration-150 disabled:opacity-60 ${className}`}
-    >
-      {loading ? (
-        <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-      ) : null}
-      {label}
-    </button>
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={handleCheckout}
+        disabled={loading}
+        className={`w-full flex items-center justify-center gap-2 py-3 text-sm font-semibold rounded-xl transition-all duration-150 disabled:opacity-60 ${className}`}
+      >
+        {loading ? (
+          <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+        ) : null}
+        {buttonLabel}
+      </button>
+      {isPassUpgrade && amountPaidCents !== null && (
+        <p className="text-xs text-center text-muted-foreground">
+          Your {formatUsd(amountPaidCents)} pass is credited
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="text-xs text-center text-destructive">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -176,8 +237,8 @@ function ComparisonTable() {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function PricingClient({ isLoggedIn, subscriptionTier }: Props) {
-  const isPro = subscriptionTier === "pro";
+export function PricingClient({ isLoggedIn, currentPlan, amountPaidCents }: Props) {
+  const buttonProps = { isLoggedIn, currentPlan, amountPaidCents };
 
   return (
     <main className="min-h-screen bg-background text-foreground pb-20">
@@ -218,7 +279,7 @@ export function PricingClient({ isLoggedIn, subscriptionTier }: Props) {
             </ul>
             {isLoggedIn ? (
               <span className="w-full flex items-center justify-center py-3 text-sm font-semibold text-muted-foreground bg-muted rounded-xl">
-                Current plan
+                {currentPlan ? "Included in your plan" : "Current plan"}
               </span>
             ) : (
               <Link
@@ -248,10 +309,10 @@ export function PricingClient({ isLoggedIn, subscriptionTier }: Props) {
               <li className="flex items-start gap-2"><Check size={14} className="text-green-500 mt-0.5 shrink-0" />Unlimited practice</li>
             </ul>
             <CheckoutButton
+              plan="monthly"
               priceId={PRICE_IDS.monthly}
               label="Start Monthly"
-              isLoggedIn={isLoggedIn}
-              isPro={isPro}
+              {...buttonProps}
               className="bg-card border border-primary text-primary hover:bg-primary/5"
             />
           </div>
@@ -274,10 +335,10 @@ export function PricingClient({ isLoggedIn, subscriptionTier }: Props) {
               <li className="flex items-start gap-2"><Check size={14} className="text-green-500 mt-0.5 shrink-0" />Expires after 90 days</li>
             </ul>
             <CheckoutButton
+              plan="90_day_pass"
               priceId={PRICE_IDS.pass90}
               label="Get 90-Day Access"
-              isLoggedIn={isLoggedIn}
-              isPro={isPro}
+              {...buttonProps}
               className="bg-card border border-primary text-primary hover:bg-primary/5"
             />
           </div>
@@ -305,10 +366,10 @@ export function PricingClient({ isLoggedIn, subscriptionTier }: Props) {
               <li className="flex items-start gap-2"><Check size={14} className="text-green-500 mt-0.5 shrink-0" />12 months access</li>
             </ul>
             <CheckoutButton
+              plan="annual"
               priceId={PRICE_IDS.annual}
               label="Get Annual Access"
-              isLoggedIn={isLoggedIn}
-              isPro={isPro}
+              {...buttonProps}
               className="bg-primary text-primary-foreground hover:opacity-90"
             />
           </div>

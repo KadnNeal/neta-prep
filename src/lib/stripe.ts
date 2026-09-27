@@ -11,8 +11,8 @@ export const PRICE_IDS = {
   pass90:  "price_1TwBYkGO8TgYfwMNV9fpFBZS",
 } as const;
 
-// One-time payments (not subscriptions)
-export const ONE_TIME_PRICES = new Set<string>([PRICE_IDS.pass90, PRICE_IDS.annual]);
+// One-time payments (not subscriptions). Monthly and Annual are recurring Stripe prices.
+export const ONE_TIME_PRICES = new Set<string>([PRICE_IDS.pass90]);
 export const VALID_PRICE_IDS = new Set<string>(Object.values(PRICE_IDS));
 
 export type SubscriptionPlan = "monthly" | "90_day_pass" | "annual";
@@ -27,7 +27,7 @@ export const PLAN_BY_PRICE: Record<string, SubscriptionPlan> = {
 export const PLAN_ACCESS_DAYS: Record<SubscriptionPlan, number | null> = {
   monthly: null,
   "90_day_pass": 90,
-  annual: 365,
+  annual: null,
 };
 
 export const ANNUAL_PRICE_CENTS = 29900;
@@ -53,4 +53,14 @@ export function isActivePro(p: ProfileSubscription): boolean {
   if (p.subscription_expires_at && new Date(p.subscription_expires_at) < new Date()) return false;
   if (p.subscription_status && !["active", "trialing"].includes(p.subscription_status)) return false;
   return true;
+}
+
+/**
+ * The plan a profile is actually on, or null when it has no active paid access.
+ * Falls back to subscription_tier for rows written before subscription_plan existed.
+ */
+export function currentPlan(p: ProfileSubscription & { subscription_plan?: string | null }): SubscriptionPlan | "unknown" | null {
+  if (!isActivePro(p)) return null;
+  const plan = p.subscription_plan ?? p.subscription_tier;
+  return plan && plan in PLAN_ACCESS_DAYS ? (plan as SubscriptionPlan) : "unknown";
 }
