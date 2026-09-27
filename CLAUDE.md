@@ -95,7 +95,22 @@ profiles (
   username text,
   neta_target_level int,       -- 1, 2, 3, or 4
   exam_date date,              -- OPTIONAL: used for study velocity calc only
-  created_at timestamptz
+  created_at timestamptz,
+  -- Billing (see "Billing & Stripe" below). There is NO subscriptions table.
+  stripe_customer_id text,
+  subscription_tier text,      -- 'free' | 'pro'
+  subscription_status text,    -- 'active' | 'trialing' | 'past_due' | 'cancelled'
+  subscription_plan text,      -- 'monthly' | '90_day_pass' | 'annual' (S34)
+  access_started_at timestamptz,   -- start of current paid access period (S34)
+  subscription_expires_at timestamptz, -- access expiry for one-time plans; null = recurring
+  stripe_amount_paid int,      -- actual cents charged (amount_total), not list price (S34)
+  practice_questions_today int,    -- free-tier daily practice cap
+  practice_count_date date
+)
+
+processed_stripe_events (     -- webhook idempotency, service-role only (S34)
+  event_id text primary key,
+  processed_at timestamptz
 )
 
 questions (
@@ -551,7 +566,55 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=     # server-only
 ANTHROPIC_API_KEY=             # server-only
+STRIPE_SECRET_KEY=             # server-only
+STRIPE_WEBHOOK_SECRET=         # server-only
 ```
+
+---
+
+## Billing & Stripe
+
+Brand: **Pass NETA**. Stripe client + price IDs live in `src/lib/stripe.ts`.
+
+| Plan | Price ID | Type | Access |
+|------|----------|------|--------|
+| Monthly | `price_1TwBWiGO8TgYfwMNwySrPsXi` | subscription | recurring, `subscription_expires_at` null |
+| 90-Day Pass | `price_1TwBYkGO8TgYfwMNV9fpFBZS` | one-time, $109 | 90 days |
+| Annual | `price_1TwBXJGO8TgYfwMNfnF7f9Kw` | one-time, $299 | 365 days |
+
+Routes:
+- `POST /api/stripe/checkout` — `{ priceId }` → `{ url }`; metadata `{ supabase_user_id, plan }`
+- `POST /api/stripe/webhook` — `checkout.session.completed`, `customer.subscription.deleted`,
+  `invoice.payment_failed`. Claims `event.id` by INSERT into `processed_stripe_events`
+  first (PK conflict = duplicate → 200); on handler failure the claim is deleted and 500
+  returned so Stripe retries. Profile update errors must throw, never be swallowed.
+- `POST /api/stripe/portal` — Stripe billing portal
+- `POST /api/upgrade-to-annual` — 90-Day Pass → Annual (S34):
+  - Pass still active → charge `29900 - stripe_amount_paid` via `price_data`,
+    `upgrade_type: '90_day_to_annual_backdated'`; webhook sets expiry =
+    original `access_started_at` + 365d and `stripe_amount_paid` = original + difference
+  - Pass expired → full-price Annual price, `upgrade_type: 'annual_fresh_after_expired_pass'`
+  - Rejects if `stripe_amount_paid` is null (pre-S34 purchases) or difference < $0.50
+
+Gating: `isActivePro()` in `src/lib/stripe.ts`. Free tier: roadmap phase 1 only,
+practice 15/day, no AI explanations, no exam simulator.
+
+⚠️ Known issue: the `"Users can update own profile"` RLS policy allows updating ANY
+column, including billing fields. Needs column-level grants (and moving
+`stripe_customer_id` writes to the service-role client) before launch.
+
+---
+
+## Public Pages & Layout (S33)
+
+- `/` — public landing page (hero, social proof, features, comparison table vs TestGuy,
+  pricing preview, final CTA). Authenticated users hitting `/` → `/dashboard`.
+- `/pricing`, `/terms` — public. All other routes: unauthenticated → `/`.
+  Public route list lives in `src/lib/supabase/middleware.ts`.
+- `public/logo.png` — used in `SiteNav` and `AppFooter` (`mix-blend-multiply` /
+  `dark:mix-blend-screen` so it works in both themes).
+- `src/components/layout/AppFooter.tsx` — Pricing / Terms / Support
+  (support@passneta.co) links; rendered in `(dashboard)/layout.tsx`.
 
 ---
 
@@ -559,7 +622,7 @@ ANTHROPIC_API_KEY=             # server-only
 
 - Responsive web only (no native mobile app)
 - No video content
-- No payment system
+- Payments via Stripe only (see Billing & Stripe)
 - NETA ETT only (no NICET for MVP)
 - exam_date is OPTIONAL — used for study velocity only, never required
 
@@ -605,7 +668,7 @@ ANTHROPIC_API_KEY=             # server-only
 | 30 | Roadmap learn pages — new RoadmapLearnContent schema (overview/sections/key_values/exam_tips/summary), LearnPageContent server component, learn page rewrite with coming-soon fallback, generate_roadmap_content.py (claude-sonnet-4-6, resume support, --dry-run), Learn+Quiz buttons on module rows | ✅ Done |
 | 31 | Roadmap question gen fix — content-grounded prompts (fetch content_sections JSONB, flatten to text), post-generation rebalance_answers() for uniform A/B/C/D distribution; file cleanup (scripts/, scripts/data/, docs/reference/); Vercel env vars all 7 to Production + Preview; redeploy | ✅ Done |
 | 32 | Dashboard overhaul — replace domain mastery % with Exam Readiness Score (weighted last-100 exam_sim, null <25), Activity by Domain (4 cards, last-25 accuracy), Study Activity Stats (streak, total answered, sessions); single Supabase query pattern in readiness.ts | ✅ Done |
-| 33 | Landing page + unauthenticated routing fix — public / landing page (hero, social proof, features, comparison table, pricing preview, final CTA, footer); middleware: unauthenticated → /, authenticated / → /dashboard, /pricing public | ✅ Done |
+| 33 | Landing page + unauthenticated routing fix — public / landing page (hero, social proof, features, comparison table, pricing preview, final CTA, footer); middleware: unauthenticated → /, authenticated / → /dashboard, /pricing public; /terms page (public), logo.png in SiteNav, AppFooter in dashboard layout | ✅ Done |
 | 34 | 90-Day Pass → Annual upgrade — profiles gets subscription_plan/access_started_at/stripe_amount_paid (reuses subscription_expires_at as access expiry), /api/upgrade-to-annual (difference charge backdated to pass start, or full-price Annual if expired), webhook idempotency via processed_stripe_events claim-first insert, Annual moved to one-time pricing, settings "Upgrade to Annual" block | ⏳ Migration pending |
 
 
