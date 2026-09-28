@@ -590,6 +590,12 @@ Webhooks (test mode): endpoint `we_1UKm2NGO8TgYfwMNUCvvph06` →
 (staging is behind Vercel Authentication; the secret is the project's Protection Bypass
 for Automation). Its signing secret is Vercel Preview `STRIPE_WEBHOOK_SECRET`.
 Production needs its own endpoint + Production secret before launch.
+
+Vercel deploys: pushes to `staging` deploy and move the `staging.passneta.co` alias; a
+manual "Redeploy" in the dashboard does NOT move the alias (push an empty commit instead).
+Env vars: never pipe secrets through PowerShell — it prepended a BOM (U+FEFF) to Preview
+`SUPABASE_SERVICE_ROLE_KEY`, which crashed every service-role call with "Cannot convert
+argument to a ByteString". Preview must use Stripe TEST keys (price IDs are test-mode).
 Middleware skips all `/api/*` routes (they return 401 JSON themselves) — before S37 it
 redirected the session-less webhook to `/`, so no webhook had ever been processed.
 
