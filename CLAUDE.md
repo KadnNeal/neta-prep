@@ -585,8 +585,13 @@ Brand: **Pass NETA**. Stripe client + price IDs live in `src/lib/stripe.ts`.
 Stripe account has **Managed Payments** on: tax is added on top of list price, and any
 inline `price_data` product MUST set `tax_code` (products use `txcd_10103001`).
 `stripe_amount_paid` stores `amount_total - total_details.amount_tax` (pre-tax, post-discount).
-Test mode has NO webhook endpoint registered yet (as of S37) — purchases don't update
-profiles until one is added for staging with its secret in Vercel `STRIPE_WEBHOOK_SECRET`.
+Webhooks (test mode): endpoint `we_1UKm2NGO8TgYfwMNUCvvph06` →
+`https://staging.passneta.co/api/stripe/webhook?x-vercel-protection-bypass=<secret>`
+(staging is behind Vercel Authentication; the secret is the project's Protection Bypass
+for Automation). Its signing secret is Vercel Preview `STRIPE_WEBHOOK_SECRET`.
+Production needs its own endpoint + Production secret before launch.
+Middleware skips all `/api/*` routes (they return 401 JSON themselves) — before S37 it
+redirected the session-less webhook to `/`, so no webhook had ever been processed.
 
 Routes:
 - `POST /api/stripe/checkout` — `{ priceId }` → `{ url }`; metadata `{ supabase_user_id, plan }`.
@@ -696,8 +701,8 @@ Note: a column-level `REVOKE` alone is a no-op while the table-level grant exist
 | 33 | Landing page + unauthenticated routing fix — public / landing page (hero, social proof, features, comparison table, pricing preview, final CTA, footer); middleware: unauthenticated → /, authenticated / → /dashboard, /pricing public; /terms page (public), logo.png in SiteNav, AppFooter in dashboard layout | ✅ Done |
 | 34 | 90-Day Pass → Annual upgrade — profiles gets subscription_plan/access_started_at/stripe_amount_paid (reuses subscription_expires_at as access expiry), /api/upgrade-to-annual (difference charge backdated to pass start, or full-price Annual if expired), webhook idempotency via processed_stripe_events claim-first insert, Annual moved to one-time pricing, settings "Upgrade to Annual" block | ✅ Done |
 | 35 | Billing security fix — checkout `stripe_customer_id` write + webhook moved to `createAdminClient()` (service role); migration revokes table-level UPDATE on profiles from anon/authenticated and grants back only username/neta_target_level/exam_date/practice counter columns; update policy gets `with check (auth.uid() = id)`; S27 billing columns recorded in a migration; merged S34 into staging | ✅ Done |
-| 36 | Lint + practice cap hardening — escape 26 quotes in /terms (react/no-unescaped-entities), ESLint ignores `.claude/**` (worktree checkouts), practice counter write moved to `createAdminClient()` with error check, migration revokes authenticated UPDATE on practice_questions_today/practice_count_date | ⏳ Migration pending (apply after deploy) |
-| 37 | Post-checkout + purchase guard — `?upgraded=true` success notice strips the param and refreshes until the webhook lands (fixes stale nav Upgrade button); pricing page marks the real current plan, other paid tiers → "Manage billing in Settings", 90-Day holders get an Annual upgrade button; checkout duplicate-purchase guard (service role, `currentPlan()`); Annual kept as a recurring $299/yr subscription (was being sent as one-time → Stripe error) and the backdated upgrade reworked to a trial_end subscription; `tax_code` on inline prices (Managed Payments); webhook stores pre-tax amount + customer id | ⏳ Needs staging webhook endpoint |
+| 36 | Lint + practice cap hardening — escape 26 quotes in /terms (react/no-unescaped-entities), ESLint ignores `.claude/**` (worktree checkouts), practice counter write moved to `createAdminClient()` with error check, migration revokes authenticated UPDATE on practice_questions_today/practice_count_date | ✅ Done |
+| 37 | Post-checkout + purchase guard — `?upgraded=true` success notice strips the param and refreshes until the webhook lands (fixes stale nav Upgrade button); pricing page marks the real current plan, other paid tiers → "Manage billing in Settings", 90-Day holders get an Annual upgrade button; checkout duplicate-purchase guard (service role, `currentPlan()`); Annual kept as a recurring $299/yr subscription (was being sent as one-time → Stripe error) and the backdated upgrade reworked to a trial_end subscription; `tax_code` on inline prices (Managed Payments); webhook stores pre-tax amount + customer id | ✅ Done |
 
 
 ---

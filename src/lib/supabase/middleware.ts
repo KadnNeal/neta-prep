@@ -32,6 +32,11 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
+
+  // API routes authenticate themselves (401 JSON / Stripe signature) — never
+  // redirect them to HTML pages. The Stripe webhook has no user session at all.
+  if (pathname.startsWith("/api/")) return supabaseResponse;
+
   const isAuthPage =
     pathname.startsWith("/login") ||
     pathname.startsWith("/signup") ||
