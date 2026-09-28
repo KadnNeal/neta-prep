@@ -58,7 +58,11 @@ function isPlan(value: string | undefined): value is SubscriptionPlan {
   return !!value && value in PLAN_ACCESS_DAYS;
 }
 
-async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+/**
+ * @param paidAt When checkout completed (the event's timestamp). Access starts here,
+ *   not at processing time, so a delayed or retried webhook doesn't add free days.
+ */
+async function handleCheckoutCompleted(session: Stripe.Checkout.Session, paidAt: Date) {
   const userId = session.metadata?.supabase_user_id;
   if (!userId) return;
 
@@ -66,7 +70,6 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   // Amount actually paid for the product: after discounts, excluding tax (Stripe
   // Managed Payments adds tax on top), so upgrade credit matches the list price basis.
   const amountPaid = (session.amount_total ?? 0) - (session.total_details?.amount_tax ?? 0);
-  const now = new Date();
   // Save the customer Stripe used (Checkout creates one if the session had none) so
   // customer.subscription.deleted can find this user later.
   const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
@@ -96,7 +99,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       subscription_tier: "pro",
       subscription_status: "active",
       subscription_plan: "annual",
-      access_started_at: now.toISOString(),
+      access_started_at: paidAt.toISOString(),
       subscription_expires_at: null,
       stripe_amount_paid: amountPaid,
     });
@@ -115,8 +118,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     subscription_tier: "pro",
     subscription_status: "active",
     subscription_plan: plan,
-    access_started_at: now.toISOString(),
-    subscription_expires_at: accessDays ? addDays(now, accessDays).toISOString() : null,
+    access_started_at: paidAt.toISOString(),
+    subscription_expires_at: accessDays ? addDays(paidAt, accessDays).toISOString() : null,
     stripe_amount_paid: amountPaid,
   });
 }
@@ -145,7 +148,10 @@ export async function POST(request: Request) {
   try {
     switch (event.type) {
       case "checkout.session.completed": {
-        await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+        await handleCheckoutCompleted(
+          event.data.object as Stripe.Checkout.Session,
+          new Date(event.created * 1000),
+        );
         break;
       }
 

@@ -7,6 +7,7 @@ import { PricingClient } from "@/components/pricing/PricingClient";
 export default async function PricingPage() {
   let plan: SubscriptionPlan | "unknown" | null = null;
   let amountPaidCents: number | null = null;
+  let expiresAt: string | null = null;
   let isLoggedIn = false;
 
   try {
@@ -25,6 +26,7 @@ export default async function PricingPage() {
       if (p) {
         plan = currentPlan(p);
         amountPaidCents = p.stripe_amount_paid;
+        expiresAt = p.subscription_expires_at;
       }
     }
   } catch {
@@ -33,7 +35,7 @@ export default async function PricingPage() {
 
   return (
     <>
-      <SiteNav subscriptionTier={plan ? "pro" : "free"} />
+      <SiteNav plan={plan} expiresAt={expiresAt} />
       <PricingClient isLoggedIn={isLoggedIn} currentPlan={plan} amountPaidCents={amountPaidCents} />
     </>
   );

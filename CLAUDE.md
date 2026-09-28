@@ -602,7 +602,6 @@ Open billing items (as of 2026-09-28):
 - Production not ready: merge S34–37 into `master`, Production webhook endpoint + secret,
   re-check Production env vars for BOM; until then prod checkout/practice counter are broken
   by the S35/S36 grants (acceptable only while there are no paying users)
-- Webhook sets `access_started_at` = processing time, not payment time (use event.created)
 - One profile has hand-set `subscription_tier = 'annual'` (app only writes 'pro')
 Middleware skips all `/api/*` routes (they return 401 JSON themselves) — before S37 it
 redirected the session-less webhook to `/`, so no webhook had ever been processed.
@@ -626,6 +625,9 @@ Routes:
     annual, expiry null, `stripe_amount_paid` = original + difference
   - Pass expired → full-price Annual subscription, `upgrade_type: 'annual_fresh_after_expired_pass'`
   - Rejects if `stripe_amount_paid` is null (pre-S34 purchases) or difference < $0.50
+
+Access dates: the webhook starts access at `event.created` (checkout completion), not
+processing time, so delayed/retried webhooks don't add free days (S38).
 
 Gating: `isActivePro()` in `src/lib/stripe.ts`; `currentPlan()` returns the active plan
 (falls back to `subscription_tier` for legacy rows), `'unknown'`, or null for free.
@@ -655,8 +657,15 @@ Note: a column-level `REVOKE` alone is a no-op while the table-level grant exist
   pricing preview, final CTA). Authenticated users hitting `/` → `/dashboard`.
 - `/pricing`, `/terms` — public. All other routes: unauthenticated → `/`.
   Public route list lives in `src/lib/supabase/middleware.ts`.
-- `public/logo.png` — used in `SiteNav` and `AppFooter` (`mix-blend-multiply` /
-  `dark:mix-blend-screen` so it works in both themes).
+- `public/logo.png` — transparent orange atom; used in `SiteNav`, `AppFooter` and the landing
+  page. No blend modes (S38 removed them — multiply turned it black in dark mode).
+- Theme: `useTheme` toggles `.dark`/`.light` on `<html>` (default dark). `globals.css` binds
+  Tailwind's `dark:` variant to that class via `@custom-variant dark` (S38) — without it,
+  Tailwind v4 `dark:` follows the OS setting, not the in-app toggle.
+- `PlanBadge` (in `SiteNav`): "Free Plan" pill + Upgrade → /pricing, or amber "Pro" pill →
+  /settings with a hover tooltip (90-Day Pass also shows "Access expires <date>").
+  SiteNav takes `plan` (from `currentPlan()`) + `expiresAt`, fetched per request in the
+  `(dashboard)` layout and `/pricing`.
 - `src/components/layout/AppFooter.tsx` — Pricing / Terms / Support
   (support@passneta.co) links; rendered in `(dashboard)/layout.tsx`.
 
@@ -717,6 +726,7 @@ Note: a column-level `REVOKE` alone is a no-op while the table-level grant exist
 | 35 | Billing security fix — checkout `stripe_customer_id` write + webhook moved to `createAdminClient()` (service role); migration revokes table-level UPDATE on profiles from anon/authenticated and grants back only username/neta_target_level/exam_date/practice counter columns; update policy gets `with check (auth.uid() = id)`; S27 billing columns recorded in a migration; merged S34 into staging | ✅ Done |
 | 36 | Lint + practice cap hardening — escape 26 quotes in /terms (react/no-unescaped-entities), ESLint ignores `.claude/**` (worktree checkouts), practice counter write moved to `createAdminClient()` with error check, migration revokes authenticated UPDATE on practice_questions_today/practice_count_date | ✅ Done |
 | 37 | Post-checkout + purchase guard — `?upgraded=true` success notice strips the param and refreshes until the webhook lands (fixes stale nav Upgrade button); pricing page marks the real current plan, other paid tiers → "Manage billing in Settings", 90-Day holders get an Annual upgrade button; checkout duplicate-purchase guard (service role, `currentPlan()`); Annual kept as a recurring $299/yr subscription (was being sent as one-time → Stripe error) and the backdated upgrade reworked to a trial_end subscription; `tax_code` on inline prices (Managed Payments); webhook stores pre-tax amount + customer id. First working Stripe webhook: registered test-mode endpoint for staging via Vercel Protection Bypass for Automation, middleware skips `/api/*` (was redirecting the webhook to `/`), fixed BOM in Preview `SUPABASE_SERVICE_ROLE_KEY` + live→test `STRIPE_SECRET_KEY`; verified event processed once + profile updated. Recap: `docs/sessions-34-37-billing-recap.md` | ✅ Done |
+| 38 | Logo dark mode + plan badge + access date — logo was invisible in dark mode because `mix-blend-multiply` applied (Tailwind v4 `dark:` followed the OS, not the `.dark` toggle): removed blend modes (SiteNav, AppFooter, landing inline styles) and added `@custom-variant dark`; `PlanBadge` in SiteNav (Free Plan + Upgrade / Pro with "Manage billing in Settings" tooltip, 90-Day expiry date); webhook uses `event.created` for access start | ✅ Done |
 
 
 ---

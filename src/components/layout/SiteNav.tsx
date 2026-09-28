@@ -4,11 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Moon, Settings, Sun } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
+import { PlanBadge } from "@/components/layout/PlanBadge";
+import type { SubscriptionPlan } from "@/lib/stripe";
 
 export function SiteNav({
-  subscriptionTier = "free",
+  plan = null,
+  expiresAt = null,
 }: {
-  subscriptionTier?: "free" | "pro";
+  /** Active paid plan from the profile (see currentPlan()); null = free */
+  plan?: SubscriptionPlan | "unknown" | null;
+  expiresAt?: string | null;
 }) {
   const pathname = usePathname();
   const isDashboard = pathname === "/dashboard";
@@ -29,7 +34,7 @@ export function SiteNav({
             alt=""
             width={22}
             height={22}
-            className="shrink-0 dark:mix-blend-screen mix-blend-multiply"
+            className="shrink-0"
           />
           Pass NETA
         </Link>
@@ -45,14 +50,9 @@ export function SiteNav({
               Dashboard
             </Link>
           )}
-          {subscriptionTier === "free" && !isPricing && (
-            <Link
-              href="/pricing"
-              className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 transition-colors duration-150 px-3 py-1.5 rounded-lg border border-primary/20"
-            >
-              Upgrade
-            </Link>
-          )}
+          <span className="px-1.5">
+            <PlanBadge plan={plan} expiresAt={expiresAt} showUpgrade={!isPricing} />
+          </span>
           <Link
             href="/settings"
             aria-label="Settings"

@@ -3,15 +3,16 @@ import { Suspense } from "react";
 import { AppFooter } from "@/components/layout/AppFooter";
 import { UpgradeSuccessNotice } from "@/components/billing/UpgradeSuccessNotice";
 import { createClient } from "@/lib/supabase/server";
-import { isActivePro } from "@/lib/stripe";
-import type { ProfileSubscription } from "@/lib/stripe";
+import { currentPlan } from "@/lib/stripe";
+import type { ProfileSubscription, SubscriptionPlan } from "@/lib/stripe";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  let subscriptionTier: "free" | "pro" = "free";
+  let plan: SubscriptionPlan | "unknown" | null = null;
+  let expiresAt: string | null = null;
 
   try {
     const supabase = await createClient();
@@ -19,11 +20,13 @@ export default async function DashboardLayout({
     if (user) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("subscription_tier, subscription_status, subscription_expires_at, stripe_customer_id")
+        .select("subscription_tier, subscription_status, subscription_expires_at, stripe_customer_id, subscription_plan")
         .eq("id", user.id)
         .single();
-      if (profile && isActivePro(profile as unknown as ProfileSubscription)) {
-        subscriptionTier = "pro";
+      const p = profile as unknown as (ProfileSubscription & { subscription_plan: string | null }) | null;
+      if (p) {
+        plan = currentPlan(p);
+        expiresAt = p.subscription_expires_at;
       }
     }
   } catch {
@@ -32,9 +35,9 @@ export default async function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <SiteNav subscriptionTier={subscriptionTier} />
+      <SiteNav plan={plan} expiresAt={expiresAt} />
       <Suspense fallback={null}>
-        <UpgradeSuccessNotice isPro={subscriptionTier === "pro"} />
+        <UpgradeSuccessNotice isPro={plan !== null} />
       </Suspense>
       <div className="flex-1">{children}</div>
       <AppFooter />

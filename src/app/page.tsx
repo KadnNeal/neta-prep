@@ -7,7 +7,7 @@ export default function LandingPage() {
       <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 md:px-12">
         <Link href="/" className="flex items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Pass NETA logo" width={28} height={28} style={{ mixBlendMode: "screen" }} />
+          <img src="/logo.png" alt="Pass NETA logo" width={28} height={28} />
           <span className="text-base font-semibold tracking-tight text-[#fafafa]">
             Pass NETA
           </span>
@@ -224,7 +224,7 @@ export default function LandingPage() {
       <footer className="border-t border-[#27272a] py-6 px-6 md:px-12 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-[#52525b]">
         <span className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="" width={18} height={18} style={{ mixBlendMode: "screen" }} />
+          <img src="/logo.png" alt="" width={18} height={18} />
           Pass NETA &copy; 2026
         </span>
         <nav className="flex items-center gap-6">

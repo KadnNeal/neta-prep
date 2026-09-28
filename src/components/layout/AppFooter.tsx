@@ -11,7 +11,6 @@ export function AppFooter() {
             alt=""
             width={16}
             height={16}
-            className="dark:mix-blend-screen mix-blend-multiply"
           />
           Pass NETA &copy; 2026
         </span>

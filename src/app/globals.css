@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* dark: follows the in-app theme toggle (.dark on <html>, see useTheme), not the OS setting */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   :root {
     /* Light Mode — warm off-white */
