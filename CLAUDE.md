@@ -596,6 +596,14 @@ manual "Redeploy" in the dashboard does NOT move the alias (push an empty commit
 Env vars: never pipe secrets through PowerShell — it prepended a BOM (U+FEFF) to Preview
 `SUPABASE_SERVICE_ROLE_KEY`, which crashed every service-role call with "Cannot convert
 argument to a ByteString". Preview must use Stripe TEST keys (price IDs are test-mode).
+
+Open billing items (as of 2026-09-28):
+- Manual test-card (4242…) checks on staging still to run
+- Production not ready: merge S34–37 into `master`, Production webhook endpoint + secret,
+  re-check Production env vars for BOM; until then prod checkout/practice counter are broken
+  by the S35/S36 grants (acceptable only while there are no paying users)
+- Webhook sets `access_started_at` = processing time, not payment time (use event.created)
+- One profile has hand-set `subscription_tier = 'annual'` (app only writes 'pro')
 Middleware skips all `/api/*` routes (they return 401 JSON themselves) — before S37 it
 redirected the session-less webhook to `/`, so no webhook had ever been processed.
 
@@ -705,10 +713,10 @@ Note: a column-level `REVOKE` alone is a no-op while the table-level grant exist
 | 31 | Roadmap question gen fix — content-grounded prompts (fetch content_sections JSONB, flatten to text), post-generation rebalance_answers() for uniform A/B/C/D distribution; file cleanup (scripts/, scripts/data/, docs/reference/); Vercel env vars all 7 to Production + Preview; redeploy | ✅ Done |
 | 32 | Dashboard overhaul — replace domain mastery % with Exam Readiness Score (weighted last-100 exam_sim, null <25), Activity by Domain (4 cards, last-25 accuracy), Study Activity Stats (streak, total answered, sessions); single Supabase query pattern in readiness.ts | ✅ Done |
 | 33 | Landing page + unauthenticated routing fix — public / landing page (hero, social proof, features, comparison table, pricing preview, final CTA, footer); middleware: unauthenticated → /, authenticated / → /dashboard, /pricing public; /terms page (public), logo.png in SiteNav, AppFooter in dashboard layout | ✅ Done |
-| 34 | 90-Day Pass → Annual upgrade — profiles gets subscription_plan/access_started_at/stripe_amount_paid (reuses subscription_expires_at as access expiry), /api/upgrade-to-annual (difference charge backdated to pass start, or full-price Annual if expired), webhook idempotency via processed_stripe_events claim-first insert, Annual moved to one-time pricing, settings "Upgrade to Annual" block | ✅ Done |
+| 34 | 90-Day Pass → Annual upgrade — profiles gets subscription_plan/access_started_at/stripe_amount_paid (reuses subscription_expires_at as access expiry), /api/upgrade-to-annual (difference charge backdated to pass start, or full-price Annual if expired), webhook idempotency via processed_stripe_events claim-first insert, Annual moved to one-time pricing, settings "Upgrade to Annual" block (one-time Annual design superseded in S37) | ✅ Done |
 | 35 | Billing security fix — checkout `stripe_customer_id` write + webhook moved to `createAdminClient()` (service role); migration revokes table-level UPDATE on profiles from anon/authenticated and grants back only username/neta_target_level/exam_date/practice counter columns; update policy gets `with check (auth.uid() = id)`; S27 billing columns recorded in a migration; merged S34 into staging | ✅ Done |
 | 36 | Lint + practice cap hardening — escape 26 quotes in /terms (react/no-unescaped-entities), ESLint ignores `.claude/**` (worktree checkouts), practice counter write moved to `createAdminClient()` with error check, migration revokes authenticated UPDATE on practice_questions_today/practice_count_date | ✅ Done |
-| 37 | Post-checkout + purchase guard — `?upgraded=true` success notice strips the param and refreshes until the webhook lands (fixes stale nav Upgrade button); pricing page marks the real current plan, other paid tiers → "Manage billing in Settings", 90-Day holders get an Annual upgrade button; checkout duplicate-purchase guard (service role, `currentPlan()`); Annual kept as a recurring $299/yr subscription (was being sent as one-time → Stripe error) and the backdated upgrade reworked to a trial_end subscription; `tax_code` on inline prices (Managed Payments); webhook stores pre-tax amount + customer id | ✅ Done |
+| 37 | Post-checkout + purchase guard — `?upgraded=true` success notice strips the param and refreshes until the webhook lands (fixes stale nav Upgrade button); pricing page marks the real current plan, other paid tiers → "Manage billing in Settings", 90-Day holders get an Annual upgrade button; checkout duplicate-purchase guard (service role, `currentPlan()`); Annual kept as a recurring $299/yr subscription (was being sent as one-time → Stripe error) and the backdated upgrade reworked to a trial_end subscription; `tax_code` on inline prices (Managed Payments); webhook stores pre-tax amount + customer id. First working Stripe webhook: registered test-mode endpoint for staging via Vercel Protection Bypass for Automation, middleware skips `/api/*` (was redirecting the webhook to `/`), fixed BOM in Preview `SUPABASE_SERVICE_ROLE_KEY` + live→test `STRIPE_SECRET_KEY`; verified event processed once + profile updated. Recap: `docs/sessions-34-37-billing-recap.md` | ✅ Done |
 
 
 ---
