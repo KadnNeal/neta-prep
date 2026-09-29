@@ -1,57 +1,71 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CheckCircle2, ChevronRight } from "lucide-react";
 
+// How long the confirmation shows before heading to the dashboard
+const CONFIRM_MS = 900;
+
+function SettingUpScreen() {
+  return (
+    <div role="status" aria-live="polite" className="w-full max-w-md text-center">
+      {/* Check icon inside a circling ring */}
+      <div className="relative inline-flex items-center justify-center w-20 h-20 mb-6">
+        <span className="absolute inset-0 rounded-full border-2 border-primary/15 border-t-primary animate-spin motion-reduce:animate-none" />
+        <span className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10">
+          <CheckCircle2 size={26} className="text-primary" />
+        </span>
+      </div>
+      <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-2">
+        Training for NETA Level 2
+      </p>
+      <h1 className="text-3xl font-bold tracking-tight text-foreground">
+        Let&apos;s get to work.
+      </h1>
+      <p className="text-muted-foreground text-sm mt-3">Setting up your prep plan…</p>
+      {/* Indeterminate progress line */}
+      <div className="mx-auto mt-6 h-1 w-48 overflow-hidden rounded-full bg-muted">
+        <div className="h-full w-1/3 rounded-full bg-primary animate-progress-slide motion-reduce:animate-none motion-reduce:w-full" />
+      </div>
+    </div>
+  );
+}
+
 export default function SelectLevelPage() {
-  const router = useRouter();
   const [phase, setPhase] = useState<"selecting" | "confirming">("selecting");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSelect() {
     if (saving) return;
     setSaving(true);
+    setError(null);
     try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        router.push("/login");
+      const res = await fetch("/api/onboarding/level", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ level: 2 }),
+      });
+      if (res.status === 401) {
+        window.location.href = "/login";
         return;
       }
-      await supabase
-        .from("profiles")
-        .update({ neta_target_level: 2 })
-        .eq("id", user.id);
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? "Couldn't save your level.");
+
       setPhase("confirming");
-      // Brief confirmation, then straight to dashboard
-      setTimeout(() => router.push("/dashboard"), 1200);
-    } finally {
+      // Full navigation (not router.push): the middleware re-reads the saved level,
+      // and a redirect back here can't leave this screen stuck in "confirming".
+      setTimeout(() => {
+        window.location.href = "/dashboard";
+      }, CONFIRM_MS);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save your level. Please try again.");
       setSaving(false);
     }
   }
 
-  if (phase === "confirming") {
-    return (
-      <div className="w-full max-w-md text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-6">
-          <CheckCircle2 size={28} className="text-primary" />
-        </div>
-        <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-2">
-          Training for NETA Level 2
-        </p>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">
-          Let&apos;s get to work.
-        </h1>
-        <p className="text-muted-foreground text-sm mt-3">
-          Setting up your prep plan…
-        </p>
-      </div>
-    );
-  }
+  if (phase === "confirming") return <SettingUpScreen />;
 
   return (
     <div className="w-full max-w-sm">
@@ -89,12 +103,21 @@ export default function SelectLevelPage() {
                 breakers, cables, protective relays.
               </p>
             </div>
-            <ChevronRight
-              size={16}
-              className="text-muted-foreground group-hover:text-primary transition-colors duration-150 shrink-0 ml-4"
-            />
+            {saving ? (
+              <span className="w-4 h-4 shrink-0 ml-4 rounded-full border-2 border-primary/30 border-t-primary animate-spin motion-reduce:animate-none" />
+            ) : (
+              <ChevronRight
+                size={16}
+                className="text-muted-foreground group-hover:text-primary transition-colors duration-150 shrink-0 ml-4"
+              />
+            )}
           </div>
         </button>
+        {error && (
+          <p role="alert" className="text-sm text-red-400 text-center">
+            {error}
+          </p>
+        )}
 
         {/* NETA Level 3 — coming soon */}
         <div className="w-full text-left bg-card border border-border rounded-2xl p-5 opacity-50 cursor-not-allowed select-none">
