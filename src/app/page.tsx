@@ -76,7 +76,7 @@ export default function LandingPage() {
                 </svg>
               </div>
               <h3 className="text-base font-semibold text-[#fafafa] mb-2">
-                28-Module Roadmap
+                30-Module Roadmap
               </h3>
               <p className="text-sm text-[#71717a] leading-relaxed">
                 Structured learning path from electrical fundamentals through

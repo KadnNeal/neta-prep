@@ -242,7 +242,7 @@ export default async function DashboardPage() {
               href="/roadmap"
               icon={<Map size={20} />}
               title="Learning Roadmap"
-              description="28 modules across 5 phases"
+              description="30 modules across 5 phases"
             />
             <NavCard
               href="/drill"
@@ -478,7 +478,7 @@ function Level1Dashboard({
               href="/roadmap"
               icon={<Map size={20} />}
               title="Learning Roadmap"
-              description="28 modules across 5 phases"
+              description="30 modules across 5 phases"
             />
             <NavCard
               href="/drill"

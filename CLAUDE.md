@@ -675,6 +675,23 @@ Note: a column-level `REVOKE` alone is a no-op while the table-level grant exist
 
 ---
 
+## Reference Documents (`docs/reference/`, gitignored)
+
+NFPA 70E (2018 ed.), ANSI/NETA ATS-2025, ECS-2024, MTS-2023, the NETA Level 2 Detailed
+Content Outline (Dec 2022), and a relay testing handbook; Paul Gill's textbook is in the repo root.
+These are copyrighted (the NFPA 70E copy is watermarked to a specific licensee) — use them
+only as sources for ORIGINAL-wording content with section citations. Never commit them,
+serve them from the app, or re-typeset their text. The L2 outline's Safety section (15%)
+is A Risk Assessment, B ESWC, C LOTO, D PPE, E Safety Equipment, F Confined Space,
+G Isolation & Temporary Grounding, H Incident Energy Analysis, I Codes & Standards.
+70E section/table numbers cited in content are 2018 numbering (e.g. Table 130.4(D)(a));
+later editions renumber some of them.
+
+Known gap: `bookmarked_questions` (S21 migration `20260421`) does not exist in the live DB,
+so Practice-mode bookmarks can't work until that migration is applied.
+
+---
+
 ## Scope Guardrails (MVP)
 
 - Responsive web only (no native mobile app)
@@ -733,6 +750,7 @@ Note: a column-level `REVOKE` alone is a no-op while the table-level grant exist
 | 38 | Logo dark mode + plan badge + access date — logo was invisible in dark mode because `mix-blend-multiply` applied (Tailwind v4 `dark:` followed the OS, not the `.dark` toggle): removed blend modes (SiteNav, AppFooter, landing inline styles) and added `@custom-variant dark`; `PlanBadge` in SiteNav (Free Plan + Upgrade / Pro with "Manage billing in Settings" tooltip, 90-Day expiry date); webhook uses `event.created` for access start | ✅ Done |
 | 39 | Log out button — `LogoutButton` icon in SiteNav (signOut scope local, full redirect to `/`, error state on failure); SiteNav `isLoggedIn` prop hides badge + Log out for logged-out /pricing visitors | ✅ Done |
 | 40 | Onboarding stuck on "Let's get to work" — level save ignored errors and a missing profiles row made the UPDATE a silent no-op, so middleware bounced /dashboard back to onboarding and the soft nav kept the confirming state. New `POST /api/onboarding/level` (zod, service-role upsert creates the row if missing, real errors), page shows errors + full-page nav to /dashboard; loading screen = spinning ring + indeterminate progress line (`animate-progress-slide` in globals.css, motion-reduce aware) | ✅ Done |
+| 41 | Safety split into 3 roadmap modules (Phase 1, orders 2–4): Safety I — Hazards, Risk Assessment & Approach Boundaries (outline A/F/I); Safety II — ESWC, LOTO & Grounding (B/C/G); Safety III — Arc Flash, PPE & Safety Equipment (D/E/H). Original-wording content from NFPA 70E (2018 ed.) + NETA L2 outline, 10 new questions each; source of truth `scripts/data/safety_modules_l2.json` → `scripts/build_safety_migration.py` → migration `20260928120000_split_safety_modules_l2.sql` (applied). L2 roadmap now 30 modules (dashboard + landing copy updated) | ✅ Done |
 
 
 ---
