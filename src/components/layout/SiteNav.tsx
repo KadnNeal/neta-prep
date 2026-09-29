@@ -5,15 +5,19 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, Moon, Settings, Sun } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { PlanBadge } from "@/components/layout/PlanBadge";
+import { LogoutButton } from "@/components/layout/LogoutButton";
 import type { SubscriptionPlan } from "@/lib/stripe";
 
 export function SiteNav({
   plan = null,
   expiresAt = null,
+  isLoggedIn = true,
 }: {
   /** Active paid plan from the profile (see currentPlan()); null = free */
   plan?: SubscriptionPlan | "unknown" | null;
   expiresAt?: string | null;
+  /** False on public pages (e.g. /pricing) viewed while logged out — hides plan badge + Log out */
+  isLoggedIn?: boolean;
 }) {
   const pathname = usePathname();
   const isDashboard = pathname === "/dashboard";
@@ -50,9 +54,11 @@ export function SiteNav({
               Dashboard
             </Link>
           )}
-          <span className="px-1.5">
-            <PlanBadge plan={plan} expiresAt={expiresAt} showUpgrade={!isPricing} />
-          </span>
+          {isLoggedIn && (
+            <span className="px-1.5">
+              <PlanBadge plan={plan} expiresAt={expiresAt} showUpgrade={!isPricing} />
+            </span>
+          )}
           <Link
             href="/settings"
             aria-label="Settings"
@@ -72,6 +78,7 @@ export function SiteNav({
           >
             {isDark ? <Sun size={15} /> : <Moon size={15} />}
           </button>
+          {isLoggedIn && <LogoutButton />}
         </div>
       </div>
     </nav>

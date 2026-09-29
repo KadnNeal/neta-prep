@@ -666,6 +666,10 @@ Note: a column-level `REVOKE` alone is a no-op while the table-level grant exist
   /settings with a hover tooltip (90-Day Pass also shows "Access expires <date>").
   SiteNav takes `plan` (from `currentPlan()`) + `expiresAt`, fetched per request in the
   `(dashboard)` layout and `/pricing`.
+- `LogoutButton` (in `SiteNav`, after the theme toggle): `signOut({ scope: "local" })` (this
+  device only), then `window.location.href = "/"` — full navigation so no signed-in page
+  stays in the client router cache. SiteNav's `isLoggedIn` prop (false on /pricing when
+  logged out) hides the badge + Log out (S39).
 - `src/components/layout/AppFooter.tsx` — Pricing / Terms / Support
   (support@passneta.co) links; rendered in `(dashboard)/layout.tsx`.
 
@@ -727,6 +731,7 @@ Note: a column-level `REVOKE` alone is a no-op while the table-level grant exist
 | 36 | Lint + practice cap hardening — escape 26 quotes in /terms (react/no-unescaped-entities), ESLint ignores `.claude/**` (worktree checkouts), practice counter write moved to `createAdminClient()` with error check, migration revokes authenticated UPDATE on practice_questions_today/practice_count_date | ✅ Done |
 | 37 | Post-checkout + purchase guard — `?upgraded=true` success notice strips the param and refreshes until the webhook lands (fixes stale nav Upgrade button); pricing page marks the real current plan, other paid tiers → "Manage billing in Settings", 90-Day holders get an Annual upgrade button; checkout duplicate-purchase guard (service role, `currentPlan()`); Annual kept as a recurring $299/yr subscription (was being sent as one-time → Stripe error) and the backdated upgrade reworked to a trial_end subscription; `tax_code` on inline prices (Managed Payments); webhook stores pre-tax amount + customer id. First working Stripe webhook: registered test-mode endpoint for staging via Vercel Protection Bypass for Automation, middleware skips `/api/*` (was redirecting the webhook to `/`), fixed BOM in Preview `SUPABASE_SERVICE_ROLE_KEY` + live→test `STRIPE_SECRET_KEY`; verified event processed once + profile updated. Recap: `docs/sessions-34-37-billing-recap.md` | ✅ Done |
 | 38 | Logo dark mode + plan badge + access date — logo was invisible in dark mode because `mix-blend-multiply` applied (Tailwind v4 `dark:` followed the OS, not the `.dark` toggle): removed blend modes (SiteNav, AppFooter, landing inline styles) and added `@custom-variant dark`; `PlanBadge` in SiteNav (Free Plan + Upgrade / Pro with "Manage billing in Settings" tooltip, 90-Day expiry date); webhook uses `event.created` for access start | ✅ Done |
+| 39 | Log out button — `LogoutButton` icon in SiteNav (signOut scope local, full redirect to `/`, error state on failure); SiteNav `isLoggedIn` prop hides badge + Log out for logged-out /pricing visitors | ✅ Done |
 
 
 ---

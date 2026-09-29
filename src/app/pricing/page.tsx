@@ -35,7 +35,7 @@ export default async function PricingPage() {
 
   return (
     <>
-      <SiteNav plan={plan} expiresAt={expiresAt} />
+      <SiteNav plan={plan} expiresAt={expiresAt} isLoggedIn={isLoggedIn} />
       <PricingClient isLoggedIn={isLoggedIn} currentPlan={plan} amountPaidCents={amountPaidCents} />
     </>
   );
