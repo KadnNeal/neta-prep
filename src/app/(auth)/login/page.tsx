@@ -2,8 +2,21 @@
 
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
+
+/** Shown when /auth/confirm rejects an invite link (expired or already used). */
+function LinkExpiredNotice() {
+  const searchParams = useSearchParams();
+  if (searchParams.get("error") !== "link_expired") return null;
+  return (
+    <div role="alert" className="bg-red-500/10 border border-red-500/30 rounded-lg px-3.5 py-2.5">
+      <p className="text-red-400 text-sm">
+        That link has expired or was already used. Log in below, or ask for a new invite.
+      </p>
+    </div>
+  );
+}
 
 function GoogleIcon() {
   return (
@@ -101,6 +114,9 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <Suspense fallback={null}>
+            <LinkExpiredNotice />
+          </Suspense>
           <div className="space-y-1.5">
             <label
               htmlFor="email"

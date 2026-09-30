@@ -675,6 +675,21 @@ Note: a column-level `REVOKE` alone is a no-op while the table-level grant exist
 
 ---
 
+## Beta Access (S42)
+
+Invite-only: public signups are disabled in Supabase Auth (this also blocks signups on
+production — same Supabase project; re-enable at launch). Invite a tester with
+`python scripts/invite_tester.py email@example.com` → send them the printed link →
+`/auth/confirm` signs them in → `/set-password` → onboarding. Links expire per Auth's
+"Email OTP expiration"; re-run the script for a fresh one (already-registered emails get a
+recovery link). Staging and production share one database: tester accounts and test-mode
+purchases also exist on production — clean up before launch.
+Vercel: production branch is `master` (only pushes to master deploy passneta.co); every
+other branch deploys a preview, and `staging` owns `staging.passneta.co`.
+Pre-launch TODO: one active session per account (stop account sharing).
+
+---
+
 ## Reference Documents (`docs/reference/`, gitignored)
 
 NFPA 70E (2018 ed.), ANSI/NETA ATS-2025, ECS-2024, MTS-2023, the NETA Level 2 Detailed
@@ -751,6 +766,7 @@ so Practice-mode bookmarks can't work until that migration is applied.
 | 39 | Log out button — `LogoutButton` icon in SiteNav (signOut scope local, full redirect to `/`, error state on failure); SiteNav `isLoggedIn` prop hides badge + Log out for logged-out /pricing visitors | ✅ Done |
 | 40 | Onboarding stuck on "Let's get to work" — level save ignored errors and a missing profiles row made the UPDATE a silent no-op, so middleware bounced /dashboard back to onboarding and the soft nav kept the confirming state. New `POST /api/onboarding/level` (zod, service-role upsert creates the row if missing, real errors), page shows errors + full-page nav to /dashboard; loading screen = spinning ring + indeterminate progress line (`animate-progress-slide` in globals.css, motion-reduce aware) | ✅ Done |
 | 41 | Safety split into 3 roadmap modules (Phase 1, orders 2–4): Safety I — Hazards, Risk Assessment & Approach Boundaries (outline A/F/I); Safety II — ESWC, LOTO & Grounding (B/C/G); Safety III — Arc Flash, PPE & Safety Equipment (D/E/H). Original-wording content from NFPA 70E (2018 ed.) + NETA L2 outline, 10 new questions each; source of truth `scripts/data/safety_modules_l2.json` → `scripts/build_safety_migration.py` → migration `20260928120000_split_safety_modules_l2.sql` (applied). L2 roadmap now 30 modules (dashboard + landing copy updated) | ✅ Done |
+| 42 | Invite-only beta — `/auth/confirm` (server `verifyOtp` from `token_hash`, same-site `next` only, bad/expired → `/login?error=link_expired`), `/set-password` page (shared rules in `src/lib/password.ts`, middleware exempts it from the level check), `scripts/invite_tester.py` prints invite links via admin `generate_link` (Supabase default mailer only emails team members). Verified Vercel production branch = `master` (prod still on 5115d76) | ✅ Done |
 
 
 ---

@@ -43,6 +43,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/auth");
   const isOnboardingPage = pathname.startsWith("/onboarding");
   const isSettingsPage = pathname.startsWith("/settings");
+  // Invited beta testers set a password here before choosing a level (requires a session)
+  const isSetPasswordPage = pathname.startsWith("/set-password");
   // Public routes — never require auth
   const isPublicRoute =
     pathname === "/" ||
@@ -67,7 +69,7 @@ export async function updateSession(request: NextRequest) {
 
   // For authenticated users on protected pages, enforce level selection.
   // No user may access any feature until profiles.neta_target_level is set.
-  if (user && !isAuthPage && !isOnboardingPage && !isSettingsPage && pathname !== "/") {
+  if (user && !isAuthPage && !isOnboardingPage && !isSettingsPage && !isSetPasswordPage && pathname !== "/") {
     try {
       const { data: profile } = await supabase
         .from("profiles")
