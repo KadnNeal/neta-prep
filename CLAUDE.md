@@ -597,12 +597,7 @@ Env vars: never pipe secrets through PowerShell — it prepended a BOM (U+FEFF) 
 `SUPABASE_SERVICE_ROLE_KEY`, which crashed every service-role call with "Cannot convert
 argument to a ByteString". Preview must use Stripe TEST keys (price IDs are test-mode).
 
-Open billing items (as of 2026-09-28):
-- Manual test-card (4242…) checks on staging still to run
-- Production not ready: merge S34–37 into `master`, Production webhook endpoint + secret,
-  re-check Production env vars for BOM; until then prod checkout/practice counter are broken
-  by the S35/S36 grants (acceptable only while there are no paying users)
-- One profile has hand-set `subscription_tier = 'annual'` (app only writes 'pro')
+Open billing items: see **Pre-launch To-Do** below.
 Middleware skips all `/api/*` routes (they return 401 JSON themselves) — before S37 it
 redirected the session-less webhook to `/`, so no webhook had ever been processed.
 
@@ -686,7 +681,34 @@ recovery link). Staging and production share one database: tester accounts and t
 purchases also exist on production — clean up before launch.
 Vercel: production branch is `master` (only pushes to master deploy passneta.co); every
 other branch deploys a preview, and `staging` owns `staging.passneta.co`.
-Pre-launch TODO: one active session per account (stop account sharing).
+
+---
+
+## Pre-launch To-Do (production = `master` → passneta.co)
+
+- [ ] **Re-enter EVERY Production env var in the Vercel dashboard** (paste in the browser,
+      never pipe through PowerShell). Only the Preview values were fixed; the Production copies
+      were set the same way in S31 and will have the same invisible BOM (U+FEFF) error
+      ("Cannot convert argument to a ByteString … value of 65279"). All of:
+      `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+      `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`,
+      `ANTHROPIC_API_KEY`. Use LIVE Stripe keys for Production (Preview stays on test keys).
+      Then push to `master` to rebuild (NEXT_PUBLIC_* are baked in at build time).
+- [ ] Stripe live mode: live prices matching the test ones (Monthly/Annual recurring, 90-Day
+      one-time, `tax_code txcd_10103001`), update price IDs in `src/lib/stripe.ts` +
+      `PricingClient.tsx`, live webhook endpoint → `https://passneta.co/api/stripe/webhook`
+      (3 events) with its secret as Production `STRIPE_WEBHOOK_SECRET`, live billing portal config
+- [ ] Merge `staging` (S33–S42+) into `master`; until then prod checkout/practice counter are
+      broken by the S35/S36 grants (OK only while there are no paying users)
+- [ ] Custom SMTP in Supabase (e.g. Resend with `passneta.co` DNS) + a "Forgot password" flow;
+      the default mailer only emails project team members
+- [ ] Re-enable Supabase public signups; set Auth Site URL to `https://passneta.co`
+- [ ] One active session per account (stop account sharing)
+- [ ] Clean up beta tester accounts and test-mode purchases (staging and prod share one DB),
+      or move production to its own Supabase project
+- [ ] Apply the missing `bookmarked_questions` migration (`20260421`) — Practice bookmarks
+- [ ] Fix the hand-set `subscription_tier = 'annual'` on the owner's profile (app writes 'pro')
+- [ ] Beta tester guide: `docs/Pass-NETA-Beta-Tester-Guide.pdf` (gitignored — *.pdf)
 
 ---
 
