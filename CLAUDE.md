@@ -684,6 +684,20 @@ other branch deploys a preview, and `staging` owns `staging.passneta.co`.
 
 ---
 
+## Question Explanations (S43)
+
+`questions.explanation` = short summary (everyone). `questions.option_explanations` =
+`{a,b,c,d}` why each choice is right/wrong — Pro only, and only sent to the client after
+`paidOptionExplanations(row, isPro)` (src/lib/explanations.ts); never ship-and-hide. Add
+`OPTION_EXPLANATION_COLUMNS` to selects and cast rows (columns aren't in generated types).
+`answer_key_flag` non-null = generator thinks the key is wrong/ambiguous → per-choice text is
+hidden until someone reviews the question and clears the flag
+(`python scripts/generate_option_explanations.py report` → scripts/data/option_explanations_flagged.csv).
+New questions: run `submit --all` → `status` → `collect` → `apply` to fill them.
+The app no longer calls the Anthropic API anywhere (S43 removed /api/practice/explain).
+
+---
+
 ## Pre-launch To-Do (production = `master` → passneta.co)
 
 - [ ] **Re-enter EVERY Production env var in the Vercel dashboard** (paste in the browser,
@@ -789,6 +803,7 @@ so Practice-mode bookmarks can't work until that migration is applied.
 | 40 | Onboarding stuck on "Let's get to work" — level save ignored errors and a missing profiles row made the UPDATE a silent no-op, so middleware bounced /dashboard back to onboarding and the soft nav kept the confirming state. New `POST /api/onboarding/level` (zod, service-role upsert creates the row if missing, real errors), page shows errors + full-page nav to /dashboard; loading screen = spinning ring + indeterminate progress line (`animate-progress-slide` in globals.css, motion-reduce aware) | ✅ Done |
 | 41 | Safety split into 3 roadmap modules (Phase 1, orders 2–4): Safety I — Hazards, Risk Assessment & Approach Boundaries (outline A/F/I); Safety II — ESWC, LOTO & Grounding (B/C/G); Safety III — Arc Flash, PPE & Safety Equipment (D/E/H). Original-wording content from NFPA 70E (2018 ed.) + NETA L2 outline, 10 new questions each; source of truth `scripts/data/safety_modules_l2.json` → `scripts/build_safety_migration.py` → migration `20260928120000_split_safety_modules_l2.sql` (applied). L2 roadmap now 30 modules (dashboard + landing copy updated) | ✅ Done |
 | 42 | Invite-only beta — `/auth/confirm` (server `verifyOtp` from `token_hash`, same-site `next` only, bad/expired → `/login?error=link_expired`), `/set-password` page (shared rules in `src/lib/password.ts`, middleware exempts it from the level check), `scripts/invite_tester.py` prints invite links via admin `generate_link` (Supabase default mailer only emails team members). Verified Vercel production branch = `master` (prod still on 5115d76) | ✅ Done |
+| 43 | Stored per-choice explanations (tester feedback) — `questions.option_explanations` jsonb {a,b,c,d} + `answer_key_flag` (migration `20261001120000`, applied); `scripts/generate_option_explanations.py` (Claude Opus 5 via Message Batches, structured JSON, answer-key check; submit/status/collect/apply/report); shared `OptionExplanations` component in Practice, roadmap quiz, exam results, Daily Drill; Pro-only and resolved server-side by `paidOptionExplanations()` (flagged questions hidden until reviewed); removed live `/api/practice/explain` | ⏳ Pilot → full run |
 
 
 ---

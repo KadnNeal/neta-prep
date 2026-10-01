@@ -17,6 +17,7 @@ interface QueueApiResponse {
   due: RawQueueItem[];
   new: RawQueueItem[];
   total: number;
+  isPro?: boolean;
   error?: string;
 }
 
@@ -62,6 +63,7 @@ export function DrillSession() {
   const [queue, setQueue] = useState<DrillCard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [isPro, setIsPro] = useState(false);
   const [selectedQuality, setSelectedQuality] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const startTimeRef = useRef<number>(Date.now());
@@ -88,6 +90,7 @@ export function DrillSession() {
           }));
 
         setQueue(cards);
+        setIsPro(data.isPro ?? false);
         initialQueueLengthRef.current = cards.length;
 
         if (cards.length === 0) {
@@ -264,6 +267,10 @@ export function DrillSession() {
             correctText={correctText}
             explanation={currentCard.question.explanation}
             trapPattern={currentCard.question.trap_pattern}
+            questionId={currentCard.questionId}
+            userAnswer={selectedAnswer}
+            optionExplanations={currentCard.question.option_explanations ?? null}
+            showUpgrade={!isPro}
           />
           <QualityRating
             selectedQuality={selectedQuality}

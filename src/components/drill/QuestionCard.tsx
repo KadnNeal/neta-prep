@@ -1,5 +1,7 @@
 "use client";
 
+import type { OptionExplanations } from "@/lib/explanations";
+
 export interface MCQOptions {
   a: string;
   b: string;
@@ -20,6 +22,8 @@ export interface DrillQuestion {
   correct_answer: string;
   explanation: string;
   trap_pattern: string | null;
+  /** Pro only; null for free users or unreviewed questions (S43) */
+  option_explanations?: OptionExplanations | null;
 }
 
 interface QuestionCardProps {

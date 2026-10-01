@@ -1,11 +1,18 @@
 "use client";
 
+import { OptionExplanations } from "@/components/explanations/OptionExplanations";
+import type { OptionExplanations as OptionExplanationsData } from "@/lib/explanations";
+
 interface AnswerFeedbackProps {
   isCorrect: boolean;
   correctLetter: string;
   correctText: string;
   explanation: string;
   trapPattern: string | null;
+  questionId: string;
+  userAnswer: string | null;
+  optionExplanations: OptionExplanationsData | null;
+  showUpgrade: boolean;
 }
 
 export function AnswerFeedback({
@@ -14,6 +21,10 @@ export function AnswerFeedback({
   correctText,
   explanation,
   trapPattern,
+  questionId,
+  userAnswer,
+  optionExplanations,
+  showUpgrade,
 }: AnswerFeedbackProps) {
   return (
     <div className="space-y-3">
@@ -45,10 +56,14 @@ export function AnswerFeedback({
 
       {/* Explanation */}
       <div className="bg-card border border-border rounded-2xl px-5 py-4 shadow-sm">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2.5">
-          Explanation
-        </p>
-        <p className="text-foreground text-base leading-relaxed">{explanation}</p>
+        <OptionExplanations
+          key={questionId}
+          correctAnswer={correctLetter}
+          userAnswer={userAnswer}
+          optionExplanations={optionExplanations}
+          summary={explanation}
+          showUpgrade={showUpgrade}
+        />
       </div>
 
       {/* Trap warning */}

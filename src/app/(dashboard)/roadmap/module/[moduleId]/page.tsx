@@ -28,7 +28,7 @@ export default async function ModulePage({
   const data = await getModuleForQuiz(moduleId, user.id);
   if (!data) notFound();
 
-  const { module, questions, progress, isUnlocked, nextModuleId } = data;
+  const { module, questions, progress, isUnlocked, nextModuleId, isPro } = data;
 
   const alreadyCompleted =
     progress?.status === "completed" &&
@@ -112,6 +112,7 @@ export default async function ModulePage({
             nextModuleId={nextModuleId}
             alreadyCompleted={alreadyCompleted}
             previousScore={progress?.score_percentage ?? null}
+            isPro={isPro}
           />
         )}
       </div>

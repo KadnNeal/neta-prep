@@ -1,5 +1,6 @@
 "use client";
 
+import { OptionExplanations } from "@/components/explanations/OptionExplanations";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -18,6 +19,7 @@ interface Props {
   nextModuleId: string | null;
   alreadyCompleted: boolean;
   previousScore: number | null;
+  isPro: boolean;
 }
 
 interface QuestionResult {
@@ -36,6 +38,7 @@ export function ModuleQuiz({
   nextModuleId,
   alreadyCompleted,
   previousScore,
+  isPro,
 }: Props) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("quiz");
@@ -221,9 +224,17 @@ export function ModuleQuiz({
                 )}
                 {reveal.wasCorrect ? "Correct!" : "Incorrect"}
               </div>
-              <p className="text-foreground/80 text-sm leading-relaxed">
-                {reveal.explanation}
-              </p>
+              {/* Per-choice breakdown for Pro (S43); summary + upgrade nudge otherwise */}
+              <div className="text-foreground/80">
+                <OptionExplanations
+                  key={reveal.questionId}
+                  correctAnswer={reveal.correct}
+                  userAnswer={reveal.chosen}
+                  optionExplanations={current.option_explanations}
+                  summary={reveal.explanation}
+                  showUpgrade={!isPro}
+                />
+              </div>
             </div>
           )}
 

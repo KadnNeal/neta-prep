@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Bookmark, CheckCircle2, ChevronRight, XCircle } from "lucide-react";
+import { OptionExplanations } from "@/components/explanations/OptionExplanations";
+import type { OptionExplanations as OptionExplanationsData } from "@/lib/explanations";
 
 interface PracticeQuestion {
   id: string;
@@ -12,88 +14,11 @@ interface PracticeQuestion {
   explanation: string;
   domain: string;
   subdomain: string;
+  /** Pro only; null for free users or unreviewed questions */
+  option_explanations: OptionExplanationsData | null;
 }
 
 type Phase = "setup" | "loading" | "session" | "results";
-
-// ── Explanation helpers ───────────────────────────────────────────────────────
-
-type ParsedExplanation = { correct: string; a: string; b: string; c: string; d: string };
-
-function parseExplanation(raw: string): ParsedExplanation {
-  function extract(label: string): string {
-    const re = new RegExp(`${label}:\\s*([\\s\\S]*?)(?=\\n(?:CORRECT|WRONG_[ABCD]):|\\s*$)`);
-    return raw.match(re)?.[1]?.trim() ?? "";
-  }
-  return {
-    correct: extract("CORRECT"),
-    a: extract("WRONG_A"),
-    b: extract("WRONG_B"),
-    c: extract("WRONG_C"),
-    d: extract("WRONG_D"),
-  };
-}
-
-function InlineMarkdown({ text }: { text: string }) {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  return (
-    <>
-      {parts.map((seg, i) =>
-        seg.startsWith("**") && seg.endsWith("**") ? (
-          <strong key={i} className="font-semibold text-foreground">
-            {seg.slice(2, -2)}
-          </strong>
-        ) : (
-          <span key={i}>{seg}</span>
-        )
-      )}
-    </>
-  );
-}
-
-function WrongAccordion({
-  letter,
-  text,
-  open,
-  onToggle,
-}: {
-  letter: string;
-  text: string;
-  open: boolean;
-  onToggle: () => void;
-}) {
-  if (!text) return null;
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex items-center justify-between w-full py-2.5 text-left hover:opacity-80 transition-opacity duration-150"
-      >
-        <span className="text-sm font-medium text-muted-foreground">
-          Why {letter.toUpperCase()} is wrong
-        </span>
-        <ChevronRight
-          size={14}
-          className={`shrink-0 text-muted-foreground transition-transform duration-200 ${
-            open ? "rotate-90" : ""
-          }`}
-        />
-      </button>
-      <div
-        className={`grid transition-all duration-200 ${
-          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-        }`}
-      >
-        <div className="overflow-hidden">
-          <p className="text-sm text-foreground/80 leading-relaxed pb-3 pr-4">
-            <InlineMarkdown text={text} />
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // Fix 4: correct NETA Level 2 weights (15 / 25 / 55 / 5)
 const DOMAINS = [
@@ -233,53 +158,20 @@ function SessionScreen({
 }) {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [userAnswer, setUserAnswer] = useState<string | null>(null);
-  const [aiExplanation, setAiExplanation] = useState<string | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
   const [bookmarks, setBookmarks] = useState<Set<string>>(
     new Set(initialBookmarks)
   );
   const [answers, setAnswers] = useState<boolean[]>([]);
-  const [openAccordions, setOpenAccordions] = useState<Set<string>>(new Set());
-
-  function toggleAccordion(letter: string) {
-    setOpenAccordions((prev) => {
-      const next = new Set(prev);
-      if (next.has(letter)) next.delete(letter); else next.add(letter);
-      return next;
-    });
-  }
 
   const current = questions[currentIdx];
   const answered = userAnswer !== null;
   const isCorrect = userAnswer === current.correct_answer;
   const isLast = currentIdx === questions.length - 1;
 
-  async function handleAnswer(letter: string) {
+  function handleAnswer(letter: string) {
     if (answered) return;
     setUserAnswer(letter);
     setAnswers((prev) => [...prev, letter === current.correct_answer]);
-
-    if (!showAiExplanation) return;
-
-    setAiLoading(true);
-    try {
-      const res = await fetch("/api/practice/explain", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          questionText: current.question,
-          options: current.options,
-          correctAnswer: current.correct_answer,
-          domain: current.domain,
-        }),
-      });
-      const data = (await res.json()) as { explanation?: string };
-      setAiExplanation(data.explanation ?? null);
-    } catch {
-      setAiExplanation(null);
-    } finally {
-      setAiLoading(false);
-    }
   }
 
   async function handleBookmark() {
@@ -310,9 +202,6 @@ function SessionScreen({
     } else {
       setCurrentIdx((prev) => prev + 1);
       setUserAnswer(null);
-      setAiExplanation(null);
-      setAiLoading(false);
-      setOpenAccordions(new Set());
     }
   }
 
@@ -341,7 +230,6 @@ function SessionScreen({
   }
 
   const pct = Math.round((currentIdx / questions.length) * 100);
-  const parsed = aiExplanation ? parseExplanation(aiExplanation) : null;
 
   return (
     <div className="space-y-6">
@@ -448,62 +336,14 @@ function SessionScreen({
             </button>
           </div>
 
-          {showAiExplanation ? (
-            aiLoading ? (
-              <div className="space-y-2.5 animate-pulse">
-                <div className="h-2.5 bg-muted rounded w-2/5" />
-                <div className="h-3 bg-muted rounded w-full" />
-                <div className="h-3 bg-muted rounded w-5/6" />
-                <div className="h-3 bg-muted rounded w-4/5" />
-              </div>
-            ) : parsed?.correct ? (
-              <div className="space-y-3">
-                {/* Always-visible correct section */}
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
-                    Explanation
-                  </p>
-                  <p className="text-sm font-semibold text-foreground mb-1.5">
-                    Why {current.correct_answer.toUpperCase()} is correct
-                  </p>
-                  <p className="text-sm text-foreground leading-relaxed">
-                    <InlineMarkdown text={parsed.correct} />
-                  </p>
-                </div>
-
-                {/* Wrong answer accordions */}
-                <div className="border-t border-border pt-1 divide-y divide-border/60">
-                  {OPTION_KEYS.filter((k) => k !== current.correct_answer).map(
-                    (letter) => (
-                      <WrongAccordion
-                        key={letter}
-                        letter={letter}
-                        text={parsed[letter]}
-                        open={openAccordions.has(letter)}
-                        onToggle={() => toggleAccordion(letter)}
-                      />
-                    )
-                  )}
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Explanation unavailable.
-              </p>
-            )
-          ) : (
-            <Link
-              href="/pricing"
-              className="flex items-center justify-between gap-3 bg-muted/50 border border-border rounded-xl px-4 py-3 hover:border-primary/40 transition-all duration-150 group"
-            >
-              <p className="text-sm text-muted-foreground">
-                Upgrade to Pro for AI explanations after every answer.
-              </p>
-              <span className="shrink-0 text-xs font-semibold text-primary group-hover:underline">
-                Upgrade →
-              </span>
-            </Link>
-          )}
+          <OptionExplanations
+            key={current.id}
+            correctAnswer={current.correct_answer}
+            userAnswer={userAnswer}
+            optionExplanations={current.option_explanations}
+            summary={current.explanation}
+            showUpgrade={!showAiExplanation}
+          />
         </div>
       )}
 

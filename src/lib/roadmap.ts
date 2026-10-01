@@ -1,3 +1,7 @@
+import { isActivePro } from "@/lib/stripe";
+import type { ProfileSubscription } from "@/lib/stripe";
+import { OPTION_EXPLANATION_COLUMNS, paidOptionExplanations } from "@/lib/explanations";
+import type { OptionExplanations } from "@/lib/explanations";
 import { createClient } from "@/lib/supabase/server";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -112,6 +116,8 @@ export interface RoadmapQuestion {
   // Included for roadmap (learning mode) — not sent in exam simulation
   correct_answer: string;
   explanation: string;
+  /** Per-choice explanations — Pro users only, null otherwise (S43) */
+  option_explanations: OptionExplanations | null;
 }
 
 // ── Phase labels ──────────────────────────────────────────────────────────────
@@ -209,8 +215,16 @@ export async function getModuleForQuiz(
   progress: UserRoadmapProgress | null;
   isUnlocked: boolean;
   nextModuleId: string | null;
+  isPro: boolean;
 } | null> {
   const supabase = await createClient();
+
+  const { data: subscription } = await supabase
+    .from("profiles")
+    .select("subscription_tier, subscription_status, subscription_expires_at, stripe_customer_id")
+    .eq("id", userId)
+    .single();
+  const isPro = !!subscription && isActivePro(subscription as unknown as ProfileSubscription);
 
   // Fetch the module
   const { data: moduleRaw } = await supabase
@@ -228,12 +242,21 @@ export async function getModuleForQuiz(
   // Fetch questions WITH correct_answer — roadmap is learning mode, not exam
   const { data: questionsRaw } = await supabase
     .from("questions")
-    .select("id, question, options, correct_answer, explanation")
+    .select(`id, question, options, correct_answer, explanation, ${OPTION_EXPLANATION_COLUMNS}` as "id")
     .eq("roadmap_module_id" as "id", moduleId)
     .eq("question_type" as "id", "roadmap")
     .order("created_at", { ascending: true });
 
-  const questions = (questionsRaw ?? []) as unknown as RoadmapQuestion[];
+  type QuestionRow = Omit<RoadmapQuestion, "option_explanations"> & {
+    option_explanations: unknown;
+    answer_key_flag: string | null;
+  };
+  const questions: RoadmapQuestion[] = ((questionsRaw ?? []) as unknown as QuestionRow[]).map(
+    ({ option_explanations, answer_key_flag, ...q }) => ({
+      ...q,
+      option_explanations: paidOptionExplanations({ option_explanations, answer_key_flag }, isPro),
+    }),
+  );
 
   // Fetch user progress for this module
   const { data: progressRaw } = await supabase
@@ -255,5 +278,5 @@ export async function getModuleForQuiz(
   const nextModuleId =
     (nextRaw as unknown as { id: string } | null)?.id ?? null;
 
-  return { module: roadmapModule, questions, progress, isUnlocked, nextModuleId };
+  return { module: roadmapModule, questions, progress, isUnlocked, nextModuleId, isPro };
 }

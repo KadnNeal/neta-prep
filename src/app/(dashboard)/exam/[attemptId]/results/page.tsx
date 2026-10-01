@@ -1,5 +1,9 @@
 import { formatSubdomainLabel, NETA_DOMAINS, type NETADomain } from "@/lib/neta-domains";
 import { createClient } from "@/lib/supabase/server";
+import { isActivePro } from "@/lib/stripe";
+import type { ProfileSubscription } from "@/lib/stripe";
+import { OPTION_EXPLANATION_COLUMNS, paidOptionExplanations } from "@/lib/explanations";
+import { OptionExplanations } from "@/components/explanations/OptionExplanations";
 import { CheckCircle, XCircle } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -28,6 +32,8 @@ interface QuestionRecord {
   explanation: string;
   domain: string;
   subdomain: string;
+  option_explanations: unknown;
+  answer_key_flag: string | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -79,10 +85,17 @@ export default async function ResultsPage({
 
   const { data: questionsRaw } = await supabase
     .from("questions")
-    .select("id, question, options, correct_answer, explanation, domain, subdomain")
+    .select(`id, question, options, correct_answer, explanation, domain, subdomain, ${OPTION_EXPLANATION_COLUMNS}` as "id")
     .in("id", questionIds);
 
-  const questions = (questionsRaw ?? []) as QuestionRecord[];
+  const questions = (questionsRaw ?? []) as unknown as QuestionRecord[];
+
+  const { data: subscription } = await supabase
+    .from("profiles")
+    .select("subscription_tier, subscription_status, subscription_expires_at, stripe_customer_id")
+    .eq("id", user.id)
+    .single();
+  const isPro = !!subscription && isActivePro(subscription as unknown as ProfileSubscription);
 
   const incorrect = questions.filter(
     (q) => userAnswers[q.id] !== q.correct_answer
@@ -288,11 +301,14 @@ export default async function ResultsPage({
                     </div>
                   </div>
 
-                  {/* Explanation */}
+                  {/* Explanation — per-choice for Pro (S43), summary otherwise */}
                   <div className="ml-9 bg-muted rounded-xl px-4 py-3">
-                    <p className="text-muted-foreground text-xs leading-relaxed">
-                      {q.explanation}
-                    </p>
+                    <OptionExplanations
+                      correctAnswer={correctLetter}
+                      userAnswer={userLetter ?? null}
+                      optionExplanations={paidOptionExplanations(q, isPro)}
+                      summary={q.explanation}
+                    />
                   </div>
 
                   {/* Subdomain tag */}

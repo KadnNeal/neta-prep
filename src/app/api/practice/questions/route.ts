@@ -2,8 +2,21 @@ import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { isActivePro } from "@/lib/stripe";
 import type { ProfileSubscription } from "@/lib/stripe";
+import { OPTION_EXPLANATION_COLUMNS, paidOptionExplanations } from "@/lib/explanations";
 
 const FREE_DAILY_LIMIT = 15;
+
+interface QuestionRow {
+  id: string;
+  question: string;
+  options: unknown;
+  correct_answer: string;
+  explanation: string | null;
+  domain: string;
+  subdomain: string;
+  option_explanations: unknown;
+  answer_key_flag: string | null;
+}
 
 export async function GET(request: Request) {
   try {
@@ -70,15 +83,17 @@ export async function GET(request: Request) {
     const maxOffset = Math.max(0, total - fetchLimit);
     const offset = Math.floor(Math.random() * (maxOffset + 1));
 
-    const { data: rows, error } = await supabase
+    const { data: rowsRaw, error } = await supabase
       .from("questions")
-      .select("id, question, options, correct_answer, explanation, domain, subdomain")
+      .select(`id, question, options, correct_answer, explanation, domain, subdomain, ${OPTION_EXPLANATION_COLUMNS}`)
       .eq("domain", domain)
       .eq("question_type", "exam_simulation")
       .eq("level", targetLevel)
       .range(offset, offset + fetchLimit - 1);
 
     if (error) throw error;
+    // option_explanations / answer_key_flag (S43) aren't in the generated types yet
+    const rows = rowsRaw as unknown as QuestionRow[] | null;
 
     // Fisher-Yates shuffle
     const shuffled = [...(rows ?? [])];
@@ -86,7 +101,11 @@ export async function GET(request: Request) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
-    const questions = shuffled.slice(0, count);
+    // Per-choice explanations only go to Pro users (never sent and hidden client-side)
+    const questions = shuffled.slice(0, count).map(({ option_explanations, answer_key_flag, ...q }) => ({
+      ...q,
+      option_explanations: paidOptionExplanations({ option_explanations, answer_key_flag }, isPro),
+    }));
 
     // Update daily count for free users
     if (!isPro && questions.length > 0) {
