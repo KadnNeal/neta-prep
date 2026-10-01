@@ -6,8 +6,10 @@ looks correct. Results are written to questions.option_explanations / answer_key
 
 Steps (state is kept in scripts/data/option_explanations_state.json):
   python scripts/generate_option_explanations.py submit --pilot 25   # stratified sample
+  python scripts/generate_option_explanations.py submit --pilot 25 --now   # same, via the regular API (no batch wait)
   python scripts/generate_option_explanations.py submit --all        # everything still missing
   python scripts/generate_option_explanations.py status              # poll the open batch
+  python scripts/generate_option_explanations.py cancel              # cancel the open batch
   python scripts/generate_option_explanations.py collect             # download results -> jsonl
   python scripts/generate_option_explanations.py apply               # write results to the DB
   python scripts/generate_option_explanations.py report              # flagged answer keys -> CSV
@@ -169,24 +171,68 @@ def cmd_submit(args: argparse.Namespace) -> None:
         return
 
     client = anthropic.Anthropic(api_key=env["ANTHROPIC_API_KEY"])
+    if args.now:
+        run_now(client, rows)
+        return
     requests = [
-        Request(
-            custom_id=q["id"],
-            params=MessageCreateParamsNonStreaming(
-                model=MODEL,
-                max_tokens=16000,
-                thinking={"type": "adaptive"},
-                system=SYSTEM,
-                output_config={"format": {"type": "json_schema", "schema": OUTPUT_SCHEMA}},
-                messages=[{"role": "user", "content": user_prompt(q)}],
-            ),
-        )
+        Request(custom_id=q["id"], params=MessageCreateParamsNonStreaming(**request_params(q)))
         for q in rows
     ]
     batch = client.messages.batches.create(requests=requests)
     state["batches"].append({"id": batch.id, "count": len(rows), "pilot": bool(args.pilot), "collected": False})
     save_state(state)
     print(f"Submitted batch {batch.id} ({len(rows)} requests). Run `status` to check progress.")
+
+
+def request_params(q: dict) -> dict:
+    return {
+        "model": MODEL,
+        "max_tokens": 16000,
+        "thinking": {"type": "adaptive"},
+        "system": SYSTEM,
+        "output_config": {"format": {"type": "json_schema", "schema": OUTPUT_SCHEMA}},
+        "messages": [{"role": "user", "content": user_prompt(q)}],
+    }
+
+
+def to_record(qid: str, msg: anthropic.types.Message, source: str) -> dict:
+    record: dict = {"id": qid, "batch": source,
+                    "usage": {"input": msg.usage.input_tokens, "output": msg.usage.output_tokens}}
+    text = next((blk.text for blk in msg.content if blk.type == "text"), "")
+    if msg.stop_reason != "end_turn":
+        record["error"] = f"stop_reason={msg.stop_reason}"
+        return record
+    try:
+        data = json.loads(text)
+        assert all(isinstance(data.get(k), str) and data[k].strip() for k in "abcd")
+        record["data"] = data
+    except (json.JSONDecodeError, AssertionError):
+        record["error"] = "invalid output"
+    return record
+
+
+def run_now(client: anthropic.Anthropic, rows: list[dict]) -> None:
+    """Regular Messages API (full price) — for small pilots when the batch queue is slow."""
+    def one(q: dict) -> dict:
+        try:
+            return to_record(q["id"], client.messages.create(**request_params(q)), "direct")
+        except anthropic.APIError as err:
+            return {"id": q["id"], "batch": "direct", "error": f"{type(err).__name__}: {err}"}
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        records = list(pool.map(one, rows))
+    with RESULTS.open("a", encoding="utf-8") as out:
+        for r in records:
+            out.write(json.dumps(r, ensure_ascii=False) + "\n")
+    tin = sum(r.get("usage", {}).get("input", 0) for r in records)
+    tout = sum(r.get("usage", {}).get("output", 0) for r in records)
+    ok = sum("data" in r for r in records)
+    print(f"{ok} ok, {len(records) - ok} failed -> {RESULTS.relative_to(ROOT)}")
+    print(f"Tokens: {tin:,} in / {tout:,} out (~${tin / 1e6 * 5 + tout / 1e6 * 25:.2f} at full price; "
+          f"batch would be ~${tin / 1e6 * 2.5 + tout / 1e6 * 12.5:.2f})")
+    for r in records:
+        if "error" in r:
+            print("  failed:", r["id"], r["error"])
 
 
 def cmd_status(_: argparse.Namespace) -> None:
@@ -200,6 +246,20 @@ def cmd_status(_: argparse.Namespace) -> None:
     c = batch.request_counts
     print(f"{batch.id}: {batch.processing_status} | processing {c.processing}, succeeded {c.succeeded}, "
           f"errored {c.errored}, canceled {c.canceled}, expired {c.expired}")
+
+
+def cmd_cancel(_: argparse.Namespace) -> None:
+    state = load_state()
+    b = open_batch(state)
+    if not b:
+        sys.exit("No open batch.")
+    env = load_env()
+    client = anthropic.Anthropic(api_key=env["ANTHROPIC_API_KEY"])
+    batch = client.messages.batches.cancel(b["id"])
+    b["collected"] = True
+    b["canceled"] = True
+    save_state(state)
+    print(f"{batch.id}: {batch.processing_status} (unprocessed requests aren't billed)")
 
 
 def cmd_collect(_: argparse.Namespace) -> None:
@@ -217,23 +277,13 @@ def cmd_collect(_: argparse.Namespace) -> None:
     usage = {"input": 0, "output": 0}
     with RESULTS.open("a", encoding="utf-8") as out:
         for result in client.messages.batches.results(b["id"]):
-            record: dict = {"id": result.custom_id, "batch": b["id"]}
             if result.result.type == "succeeded":
                 msg = result.result.message
                 usage["input"] += msg.usage.input_tokens
                 usage["output"] += msg.usage.output_tokens
-                text = next((blk.text for blk in msg.content if blk.type == "text"), "")
-                if msg.stop_reason != "end_turn":
-                    record["error"] = f"stop_reason={msg.stop_reason}"
-                else:
-                    try:
-                        data = json.loads(text)
-                        assert all(isinstance(data.get(k), str) and data[k].strip() for k in "abcd")
-                        record["data"] = data
-                    except (json.JSONDecodeError, AssertionError):
-                        record["error"] = "invalid output"
+                record = to_record(result.custom_id, msg, b["id"])
             else:
-                record["error"] = result.result.type
+                record = {"id": result.custom_id, "batch": b["id"], "error": result.result.type}
             ok += "data" in record
             failed += "error" in record
             out.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -317,10 +367,11 @@ def main() -> None:
     g.add_argument("--pilot", type=int, help="stratified sample size")
     g.add_argument("--all", action="store_true")
     s.add_argument("--dry-run", action="store_true", help="print counts and a sample prompt; submit nothing")
-    for name in ("status", "collect", "apply", "report"):
+    s.add_argument("--now", action="store_true", help="use the regular API instead of a batch (small pilots)")
+    for name in ("status", "cancel", "collect", "apply", "report"):
         sub.add_parser(name)
     args = parser.parse_args()
-    {"submit": cmd_submit, "status": cmd_status, "collect": cmd_collect,
+    {"submit": cmd_submit, "status": cmd_status, "cancel": cmd_cancel, "collect": cmd_collect,
      "apply": cmd_apply, "report": cmd_report}[args.cmd](args)
 
 
