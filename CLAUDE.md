@@ -694,6 +694,10 @@ other branch deploys a preview, and `staging` owns `staging.passneta.co`.
 hidden until someone reviews the question and clears the flag
 (`python scripts/generate_option_explanations.py report` → scripts/data/option_explanations_flagged.csv).
 New questions: run `submit --all` → `status` → `collect` → `apply` to fill them.
+Fixing flagged keys: `python scripts/draft_answer_key_corrections.py submit` → `collect` →
+owner marks APPROVE/REJECT in scripts/data/answer_key_corrections.csv → `apply` (edited
+questions get option_explanations cleared and are regenerated + re-checked by the next
+`generate_option_explanations.py submit --all`). Pilot flagged 4/23 (17%) keys.
 The app no longer calls the Anthropic API anywhere (S43 removed /api/practice/explain).
 
 ---

@@ -175,7 +175,7 @@ def cmd_submit(args: argparse.Namespace) -> None:
         run_now(client, rows)
         return
     requests = [
-        Request(custom_id=q["id"], params=MessageCreateParamsNonStreaming(**request_params(q)))
+        Request(custom_id=q["id"], params=MessageCreateParamsNonStreaming(**request_params(q, max_tokens=32000)))
         for q in rows
     ]
     batch = client.messages.batches.create(requests=requests)
@@ -184,10 +184,11 @@ def cmd_submit(args: argparse.Namespace) -> None:
     print(f"Submitted batch {batch.id} ({len(rows)} requests). Run `status` to check progress.")
 
 
-def request_params(q: dict) -> dict:
+def request_params(q: dict, max_tokens: int = 16000) -> dict:
+    # Non-streaming direct calls stay at 16K (SDK timeout guard); batches can go higher.
     return {
         "model": MODEL,
-        "max_tokens": 16000,
+        "max_tokens": max_tokens,
         "thinking": {"type": "adaptive"},
         "system": SYSTEM,
         "output_config": {"format": {"type": "json_schema", "schema": OUTPUT_SCHEMA}},
