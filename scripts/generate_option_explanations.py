@@ -175,7 +175,7 @@ def cmd_submit(args: argparse.Namespace) -> None:
         run_now(client, rows)
         return
     requests = [
-        Request(custom_id=q["id"], params=MessageCreateParamsNonStreaming(**request_params(q, max_tokens=32000)))
+        Request(custom_id=q["id"], params=MessageCreateParamsNonStreaming(**request_params(q, max_tokens=32000, effort=args.effort)))
         for q in rows
     ]
     batch = client.messages.batches.create(requests=requests)
@@ -184,14 +184,18 @@ def cmd_submit(args: argparse.Namespace) -> None:
     print(f"Submitted batch {batch.id} ({len(rows)} requests). Run `status` to check progress.")
 
 
-def request_params(q: dict, max_tokens: int = 16000) -> dict:
+def request_params(q: dict, max_tokens: int = 16000, effort: str | None = None) -> dict:
     # Non-streaming direct calls stay at 16K (SDK timeout guard); batches can go higher.
+    # effort caps reasoning — use "medium" to retry questions that hit max_tokens.
+    output_config: dict = {"format": {"type": "json_schema", "schema": OUTPUT_SCHEMA}}
+    if effort:
+        output_config["effort"] = effort
     return {
         "model": MODEL,
         "max_tokens": max_tokens,
         "thinking": {"type": "adaptive"},
         "system": SYSTEM,
-        "output_config": {"format": {"type": "json_schema", "schema": OUTPUT_SCHEMA}},
+        "output_config": output_config,
         "messages": [{"role": "user", "content": user_prompt(q)}],
     }
 
@@ -369,6 +373,7 @@ def main() -> None:
     g.add_argument("--all", action="store_true")
     s.add_argument("--dry-run", action="store_true", help="print counts and a sample prompt; submit nothing")
     s.add_argument("--now", action="store_true", help="use the regular API instead of a batch (small pilots)")
+    s.add_argument("--effort", choices=["low", "medium", "high"], help="cap reasoning (retry runaway questions with medium)")
     for name in ("status", "cancel", "collect", "apply", "report"):
         sub.add_parser(name)
     args = parser.parse_args()
